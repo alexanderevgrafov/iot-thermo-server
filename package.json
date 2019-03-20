@@ -1,0 +1,27 @@
+{
+  "private": true,
+  "name": "just_test",
+  "version": "0.1.0",
+  "repository": {
+    "type": "git",
+    "url": "https://bitbucket.org/alexanderevgrafov/jt"
+  },
+  "author": "Alexander Evgrafov",
+  "license": "UNLICENSED",
+  "homepage": "",
+  "scripts": {
+    "build": "webpack  --progress --colors --env.develop",
+    "prod": "webpack"
+  },
+  "dependencies": {
+    "react": "^16.8.1",
+    "react-dom": "^16.8.1",
+    "webpack-cli": "^3.3.0",
+    "html-webpack-plugin": "^3.2.0",
+    "react-mvx": "^2.0.4",
+    "ts-loader": "^5.3.3",
+    "type-r": "^3.0.1",
+    "typescript": "^3.3.1",
+    "webpack": "^4.29.6"
+  }
+}

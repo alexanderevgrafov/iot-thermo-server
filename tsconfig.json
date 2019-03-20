@@ -1,0 +1,23 @@
+{
+    "compilerOptions": {
+        "pretty": true,
+        "experimentalDecorators": true,
+        "emitDecoratorMetadata": true,
+        "module": "commonjs",
+        "target": "es5",
+        "lib":[ "es2016" ],
+        "jsx": "react",
+        "moduleResolution": "node",
+        "sourceMap": true,
+//        "outDir": "./dist",
+        "alwaysStrict": true,
+        "allowJs": true
+    },
+
+    "exclude": [
+        "node_modules",
+        "vendor"
+    ],
+
+    "compileOnSave": true
+}
