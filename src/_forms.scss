@@ -1,0 +1,28 @@
+.rc-slider {
+  padding: 15px 0;
+
+  .rc-slider-rail {
+	height: 2px;
+	background-color: silver;
+  }
+  .rc-slider-track {
+	height: 2px;
+	background-color: $primary;
+  }
+  .rc-slider-handle {
+	margin-left: -9px;
+	margin-top: -7px;
+	width: 18px;
+	height: 18px;
+	border-radius: 50%;
+	border: none;
+	background-color: $primary;
+  }
+
+  &.rc-slider-disabled {
+	.rc-slider-track, .rc-slider-handle {
+	  background-color: silver;
+	}
+
+  }
+}

@@ -1,6 +1,6 @@
 {
   "private": true,
-  "name": "just_test",
+  "name": "ESP8622_client",
   "version": "0.1.0",
   "repository": {
     "type": "git",
@@ -10,18 +10,21 @@
   "license": "UNLICENSED",
   "homepage": "",
   "scripts": {
+    "watch": "webpack  --progress --colors --watch --env.develop",
     "build": "webpack  --progress --colors --env.develop",
     "prod": "webpack"
   },
   "dependencies": {
-    "react": "^16.8.1",
-    "react-dom": "^16.8.1",
-    "webpack-cli": "^3.3.0",
     "html-webpack-plugin": "^3.2.0",
-    "react-mvx": "^2.0.4",
+    "react": "^16.8.1",
+    "react-bootstrap": "^1.0.0-beta.8",
+    "react-dom": "^16.8.1",
+    "react-type-r": "3.0.0-a001",
     "ts-loader": "^5.3.3",
-    "type-r": "^3.0.1",
+    "type-r": "^3.0.0",
     "typescript": "^3.3.1",
-    "webpack": "^4.29.6"
+    "valuelink": "^2.0.5",
+    "webpack": "^4.29.6",
+    "webpack-cli": "^3.3.0"
   }
 }
