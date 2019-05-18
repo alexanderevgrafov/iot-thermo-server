@@ -1,12 +1,15 @@
 const webpack = require( 'webpack' ),
       HtmlWebpackPlugin = require( 'html-webpack-plugin' ),
+      WebpackNotifierPlugin = require( 'webpack-notifier' ),
       path = require( 'path' ),
       package_json = require( './package.json' ),
       develop = process.argv.indexOf( '--env.develop' ) >= 0,
 
       dist = path.join( __dirname, process.env.WEBPACK_DIST || 'public' ),
 
-      plugins = [      ];
+      plugins = [ ];
+
+develop && plugins.push( new WebpackNotifierPlugin( { alwaysNotify: true } ) );
 
 console.log( ( develop ? 'DEVELOP' : 'PRODUCTION' ) + ' build configuration.' );
 console.log( 'My dir name is', __dirname );

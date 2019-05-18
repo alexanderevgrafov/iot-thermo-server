@@ -9,6 +9,16 @@ import cx from 'classnames'
 const Form = BsForm,
       Card = BsCard;
 
+Form.Row =  ({label, units, children, ...props}) =>
+    <Form.Group { ...props } >
+        { label !== undefined && <Form.Label>{ label }</Form.Label> }
+        <div className='form-row'>
+            <div className='form-row-control'>
+                { children }
+            </div>
+        </div>
+    </Form.Group>;
+
 Form.ControlLinked = ( { valueLink, onChange, accepts, value, ...props } ) =>
     <BsForm.Control
         onChange={e => {
