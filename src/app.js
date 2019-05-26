@@ -2,7 +2,7 @@ import React, { Link } from 'react-type-r'
 import * as ReactDOM from 'react-dom'
 import { Record, define, type } from 'type-r'
 import * as moment from 'moment'
-import { Container, Row, Col, Form, Button } from './Bootstrap'
+import { Container, Row, Col, Form, Button, Tabs, Tab } from './Bootstrap'
 import * as ReactHighcharts from 'react-highcharts'
 import './app.scss'
 
@@ -14,8 +14,7 @@ const onServerIPchange = ip => {
     localStorage.setItem( 'ip', server_ip = ip );
 };
 
-const stampToString = stamp =>
-    moment( stamp ).toArray().join( ', ' );
+//const stampToString = stamp =>    moment( stamp ).toArray().join( ', ' );
 
 const server_url = ( path, params ) => {
     const esc = encodeURIComponent;
@@ -28,9 +27,7 @@ const server_url = ( path, params ) => {
     );
 };
 
-const getJson = res => {
-    return res.json()
-};
+//const getJson = res => res.json();
 
 const ESPfetch = ( url ) => fetch( url, {
     mode : 'cors',
@@ -207,15 +204,6 @@ class LineModel extends Record {
     };
 }
 
-/*
-@define
-class ChartSeriesModel extends Record {
-    static attributes = {
-        series: LineModel.Collection
-    };
-}
-*/
-
 @define
 class Application extends React.Component {
     static state = {
@@ -228,6 +216,7 @@ class Application extends React.Component {
         series        : LineModel.Collection,
         plot_lines    : PlotLineModel.Collection,
         chart_options : {
+            title:{ text:'Temperature'},
             chart  : {
                 zoomType : 'x'
             },
@@ -376,92 +365,97 @@ class Application extends React.Component {
     render() {
         const { conf, cur, sensors, fs, files, connection, chart_options } = this.state;
 
-//        const mom = moment;
-
         return <Container>
-            <Row>
-                <div style={{ width : '100%' }} ref='chartbox'>
-                    <ReactHighcharts
-                        config={chart_options}
-                        callback={this.afterRender}
-                        isPureConfig={true}
-                    />
-                </div>
-            </Row>
-            <Row>
-                <Col>
-                    <h3>{connection ? cur.avg : '---'}&deg;C</h3>
-                    {cur.s.map( ( t, i ) => {
-                        const s = sensors.at( i );
-                        return <li key={i}>{(s && s.name) + ' ' + (t / 10)}&deg;</li>
-                    } )}
-                    <h4>Relay is {cur.rel ? 'ON' : 'OFF'}</h4>
-                    {connection ? 'Up for ' + moment.duration( cur.up * 1000 ).humanize() : 'Connection lost'}
-                    <div>
-                        {/*this.timer ?
-                         <Button onClick={this.stopTimer}>Stop timer</Button> :
-                         <Button onClick={this.setTimer}>Start timer</Button>
-                         */
-                        }
-                        <Button onClick={() => this.getCurInfo( true )}>Load now</Button>
-                    </div>
-                </Col>
-                <Col>
-                    <Form.Row label='T low'>
-                        <Form.ControlLinked valueLink={conf.linkAt( 'tl' )}/>
-                    </Form.Row>
-                    <Form.Row label='T high'>
-                        <Form.ControlLinked valueLink={conf.linkAt( 'th' )}/>
-                    </Form.Row>
-                    <Form.Row label='ON min'>
-                        <Form.ControlLinked valueLink={conf.linkAt( 'ton' )}/>
-                    </Form.Row>
-                    <Form.Row label='OFF min'>
-                        <Form.ControlLinked valueLink={conf.linkAt( 'toff' )}/>
-                    </Form.Row>
-                    <Form.Row label='Read each'>
-                        <Form.ControlLinked valueLink={conf.linkAt( 'read' )}/>
-                    </Form.Row>
-                    <Form.Row label='Log each'>
-                        <Form.ControlLinked valueLink={conf.linkAt( 'log' )}/>
-                    </Form.Row>
-                    <Form.Row label='Flush log each'>
-                        <Form.ControlLinked valueLink={conf.linkAt( 'flush' )}/>
-                    </Form.Row>
-                    <Button onClick={() => conf.save()
-                        .then( json => this.parseState( json ) )} variant='outline-info'>Update config</Button>
-                </Col>
-                <Col>
-                    {
-                        sensors.map( obj => <Form.Row key={obj}>
-                                <Form.ControlLinked valueLink={obj.linkAt( 'name' )}/>
-                                <Form.ControlLinked valueLink={obj.linkAt( 'weight' )}/>
+            <Tabs defaultActiveKey='chart'
+                  onSelect={key => key === 'chart' && this.chart.reflow()}
+            >
+                <Tab eventKey='chart' title='Chart'>
+                    <Row>
+                        <div style={{ width : '100%' }} ref='chartbox'>
+                            <ReactHighcharts
+                                config={chart_options}
+                                callback={this.afterRender}
+                                isPureConfig={true}
+                                height={600}
+                            />
+                        </div>
+                    </Row>
+                    <Row>
+                        <Col>
+                            <h3>{connection ? cur.avg : '---'}&deg;C</h3>
+                            <h4>Relay is {cur.rel ? 'ON' : 'OFF'}</h4>
+                            {cur.s.map( ( t, i ) => {
+                                const s = sensors.at( i );
+                                return <li key={i}>{(s && s.name) + ' ' + (t / 10)}&deg;</li>
+                            } )}
+                            <Button onClick={() => this.getCurInfo( true )}
+                                    variant='outline-primary'                            >Load now</Button>
+                            <div>{connection ? 'Up for ' + moment.duration( cur.up * 1000 ).humanize() : 'Connection lost'}</div>
+                        </Col>
+                    </Row>
+                </Tab>
+                <Tab eventKey='config' title='Config'>
+                    <Row>
+                        <Col>
+                            <Form.Row label='ESP IP'>
+                                <Form.ControlLinked valueLink={Link.value( server_ip, x => {
+                                    onServerIPchange( x );
+                                    this.asyncUpdate()
+                                } )}/>
                             </Form.Row>
-                        )
-                    }
-                    <Button onClick={() => sensors.save()
-                        .then( json => this.parseState( json ) )} variant='outline-info'>Set balance</Button>
-                    <Form.Row label='ESP IP'>
-                        <Form.ControlLinked valueLink={Link.value( server_ip, x => {
-                            onServerIPchange( x );
-                            this.asyncUpdate()
-                        } )}/>
-                    </Form.Row>
-                    <Button onClick={() => this.getFullState()} variant='outline-info'>Get From ESP</Button>
-
-                </Col>
-                <Col>
-                    <h4>Used {Math.round( fs.used * 1000 / fs.tot ) / 10}%</h4>
-                    {
-                        files.map( file => <Form.Row label={file.n + ' ' + Math.round( file.s * 10 / 1024 ) / 10 + 'Kb'}
-                                                     key={file}>
-                                <Button onClick={() => file.load()} variant='light' size='sm'>Load</Button>
-                                <Button onClick={() => file.del()} variant='light' size='sm'>Delete</Button>
+                            <Button onClick={() => this.getFullState()} variant='outline-info'>Get From ESP</Button>
+                        </Col>
+                        <Col>
+                            <Form.Row label='T low'>
+                                <Form.ControlLinked valueLink={conf.linkAt( 'tl' )}/>
                             </Form.Row>
-                        )
-                    }
-                </Col>
-            </Row>
+                            <Form.Row label='T high'>
+                                <Form.ControlLinked valueLink={conf.linkAt( 'th' )}/>
+                            </Form.Row>
+                            <Form.Row label='ON min'>
+                                <Form.ControlLinked valueLink={conf.linkAt( 'ton' )}/>
+                            </Form.Row>
+                            <Form.Row label='OFF min'>
+                                <Form.ControlLinked valueLink={conf.linkAt( 'toff' )}/>
+                            </Form.Row>
+                            <Form.Row label='Read each'>
+                                <Form.ControlLinked valueLink={conf.linkAt( 'read' )}/>
+                            </Form.Row>
+                            <Form.Row label='Log each'>
+                                <Form.ControlLinked valueLink={conf.linkAt( 'log' )}/>
+                            </Form.Row>
+                            <Form.Row label='Flush log each'>
+                                <Form.ControlLinked valueLink={conf.linkAt( 'flush' )}/>
+                            </Form.Row>
+                            <Button onClick={() => conf.save()
+                                .then( json => this.parseState( json ) )} variant='outline-info'>Update config</Button>
+                        </Col>
+                        <Col>
+                            {
+                                sensors.map( obj => <Form.Row key={obj}>
+                                        <Form.ControlLinked valueLink={obj.linkAt( 'name' )}/>
+                                        <Form.ControlLinked valueLink={obj.linkAt( 'weight' )}/>
+                                    </Form.Row>
+                                )
+                            }
+                            <Button onClick={() => sensors.save()
+                                .then( json => this.parseState( json ) )} variant='outline-info'>Set balance</Button>
+                        </Col>
+                        <Col>
+                            <h4>Used {Math.round( fs.used * 1000 / fs.tot ) / 10}%</h4>
+                            {
+                                files.map( file => <Form.Row
+                                        label={file.n + ' ' + Math.round( file.s * 10 / 1024 ) / 10 + 'Kb'}
+                                        key={file}>
+                                        <Button onClick={() => file.load()} variant='light' size='sm'>Load</Button>
+                                        <Button onClick={() => file.del()} variant='light' size='sm'>Delete</Button>
+                                    </Form.Row>
+                                )
+                            }
+                        </Col>
+                    </Row>
+                </Tab>
+            </Tabs>
         </Container>;
     }
 }
