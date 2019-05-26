@@ -11,6 +11,14 @@ const webpack = require( 'webpack' ),
 
 develop && plugins.push( new WebpackNotifierPlugin( { alwaysNotify: true } ) );
 
+plugins.push(
+    new webpack.ProvidePlugin({
+        _ : 'underscore',
+        $ : 'jquery',
+        cx: 'classnames'
+    }),
+);
+
 console.log( ( develop ? 'DEVELOP' : 'PRODUCTION' ) + ' build configuration.' );
 console.log( 'My dir name is', __dirname );
 
