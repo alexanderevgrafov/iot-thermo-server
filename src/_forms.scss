@@ -1,3 +1,16 @@
+.form-group  {
+  display:flex;
+}
+.form-label  {
+  flex: 4 1 40%;
+  overflow:hidden;
+  text-overflow: ellipsis;
+}
+.form-row  {
+  flex: 5 1 auto;
+}
+
+
 .rc-slider {
   padding: 15px 0;
 

@@ -1,6 +1,6 @@
 import React, { Link } from 'react-type-r'
 import * as ReactDOM from 'react-dom'
-import { Record, Collection, define } from 'type-r'
+import { Record, define, type } from 'type-r'
 import * as moment from 'moment'
 import { Container, Row, Col, Form, Button } from './Bootstrap'
 import * as ReactHighcharts from 'react-highcharts'
@@ -83,7 +83,7 @@ class CurInfoModel extends Record {
 }
 
 @define
-class FileSysten extends Record {
+class FileSystem extends Record {
     static attributes = {
         tot   : 0,
         used  : 0,
@@ -95,12 +95,37 @@ class FileSysten extends Record {
 @define
 class SensorModel extends Record {
     static attributes = {
-        addr   : [],
-        weight : 10
+        addr   : type( Array ).has.watcher( 'onAddrChange' ),
+        weight : 10,
+        name   : type( String ).has.watcher( 'onNameChange' ),
     };
 
+    /*
+        get name() {
+            return this._name || this.addr.splice(0,2).join('-');
+        }
+    */
+    onNameChange() {
+        localStorage.setItem( '/sens/' + this.addr.join( '' ), this.name );
+    }
+
+    loadName() {
+        this.name = localStorage.getItem( '/sens/' + this.addr.join( '' ) ) || (this.addr[ 0 ] + '~' + this.addr[ 1 ]);
+    }
+
+    /*
+        onAddrChange(){
+            this._name = localStorage.getItem('/sens/' + this.addr.join('')) || '';
+        }
+    */
     toLine() {
         return this.addr.join( ',' ) + ',' + this.weight;
+    }
+
+    static collection = {
+        loadNames() {
+            this.each( x => x.loadName() );
+        }
     }
 }
 
@@ -197,7 +222,7 @@ class Application extends React.Component {
         conf          : ConfigModel,
         cur           : CurInfoModel,
         sensors       : SensorCollection,
-        fs            : FileSysten,
+        fs            : FileSystem,
         files         : FileModel.Collection,
         connection    : false,
         series        : LineModel.Collection,
@@ -209,16 +234,7 @@ class Application extends React.Component {
             xAxis  : {
                 type : 'datetime'
             },
-            series : [ {  //ToDo: dynamically add serias at load time
-                data : [],
-                type : 'spline'
-            }, {
-                data : []
-            }, {
-                data : []
-            }, {
-                data : []
-            } ]
+            series : []
         }
     };
 
@@ -244,6 +260,8 @@ class Application extends React.Component {
             sensors,
             files : json.dt
         } );
+
+        this.state.sensors.loadNames();
 
         this.timer && this.setTimer();
     }
@@ -280,19 +298,20 @@ class Application extends React.Component {
     };
 
     loadData = ( file = null ) => {
-        const chunk = file || this.state.files.last();
+        const chunk     = file || this.state.files.last(),
+              sns_count = this.state.sensors.length;
 
         chunk &&
         chunk.load().then( json => {
             const series = [];
 
-            for( let i = 0; i < 4; i++ ) { // cache the series refs
+            for( let i = 0; i < sns_count; i++ ) { // cache the series refs
                 series[ i ] = this.state.series.at( i ) || this.state.series.add( {} )[ 0 ];
             }
 
             _.each( json, line => {
                 if( _.isNumber( line[ 1 ] ) ) {
-                    for( let i = 0; i < 4; i++ ) {
+                    for( let i = 0; i < sns_count; i++ ) {
                         if( line[ 1 + i ] > -1000 ) {
                             series[ i ].data.add( { stamp : line[ 0 ], temp : line[ 1 + i ] }, { silent : true } );
                         }
@@ -315,7 +334,13 @@ class Application extends React.Component {
     };
 
     updateChart() {
-        for( let i = 0; i < 4; i++ ) {
+        const { sensors } = this.state,
+              sns_count   = sensors.length;
+
+        for( let i = 0; i < sns_count; i++ ) {
+            if( !this.chart.series[ i ] ) {
+                this.chart.addSeries( { type : 'spline', name : sensors.at( i ).name } );
+            }
             this.chart.series[ i ].setData( this.state.series.at( i ).data.toJSON(), false );
         }
 
@@ -366,7 +391,10 @@ class Application extends React.Component {
             <Row>
                 <Col>
                     <h3>{connection ? cur.avg : '---'}&deg;C</h3>
-                    {cur.s.map( t => t / 10 ).join( ', ' )}
+                    {cur.s.map( ( t, i ) => {
+                        const s = sensors.at( i );
+                        return <li key={i}>{(s && s.name) + ' ' + (t / 10)}&deg;</li>
+                    } )}
                     <h4>Relay is {cur.rel ? 'ON' : 'OFF'}</h4>
                     {connection ? 'Up for ' + moment.duration( cur.up * 1000 ).humanize() : 'Connection lost'}
                     <div>
@@ -375,7 +403,7 @@ class Application extends React.Component {
                          <Button onClick={this.setTimer}>Start timer</Button>
                          */
                         }
-                        <Button onClick={() => this.getCurInfo( true )} color='white'>Get Info</Button>
+                        <Button onClick={() => this.getCurInfo( true )}>Load now</Button>
                     </div>
                 </Col>
                 <Col>
@@ -401,24 +429,25 @@ class Application extends React.Component {
                         <Form.ControlLinked valueLink={conf.linkAt( 'flush' )}/>
                     </Form.Row>
                     <Button onClick={() => conf.save()
-                        .then( json => this.parseState( json ) )}>Update config</Button>
+                        .then( json => this.parseState( json ) )} variant='outline-info'>Update config</Button>
                 </Col>
                 <Col>
                     {
-                        sensors.map( obj => <Form.Row label={obj.addr.join( ',' )} key={obj}>
+                        sensors.map( obj => <Form.Row key={obj}>
+                                <Form.ControlLinked valueLink={obj.linkAt( 'name' )}/>
                                 <Form.ControlLinked valueLink={obj.linkAt( 'weight' )}/>
                             </Form.Row>
                         )
                     }
                     <Button onClick={() => sensors.save()
-                        .then( json => this.parseState( json ) )}>Set balance</Button>
+                        .then( json => this.parseState( json ) )} variant='outline-info'>Set balance</Button>
                     <Form.Row label='ESP IP'>
                         <Form.ControlLinked valueLink={Link.value( server_ip, x => {
                             onServerIPchange( x );
                             this.asyncUpdate()
                         } )}/>
                     </Form.Row>
-                    <Button onClick={() => this.getFullState()}>Get From ESP</Button>
+                    <Button onClick={() => this.getFullState()} variant='outline-info'>Get From ESP</Button>
 
                 </Col>
                 <Col>
@@ -426,8 +455,8 @@ class Application extends React.Component {
                     {
                         files.map( file => <Form.Row label={file.n + ' ' + Math.round( file.s * 10 / 1024 ) / 10 + 'Kb'}
                                                      key={file}>
-                                <Button onClick={() => file.load()}>Load</Button>
-                                <Button onClick={() => file.del()}>Delete</Button>
+                                <Button onClick={() => file.load()} variant='light' size='sm'>Load</Button>
+                                <Button onClick={() => file.del()} variant='light' size='sm'>Delete</Button>
                             </Form.Row>
                         )
                     }
