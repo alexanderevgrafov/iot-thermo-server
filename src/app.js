@@ -216,7 +216,7 @@ class Application extends React.Component {
         series        : LineModel.Collection,
         plot_lines    : PlotLineModel.Collection,
         chart_options : {
-            title:{ text:'Temperature'},
+            title  : { text : 'Temperature' },
             chart  : {
                 zoomType : 'x'
             },
@@ -261,10 +261,31 @@ class Application extends React.Component {
             .then( () => this.loadData() )
     }
 
+    addPoints() {
+        const { sensors, cur } = this.state,
+              sns_count        = sensors.length,
+              now              = Date.now() - (new Date).getTimezoneOffset() * 60 * 1000;
+        let added              = 0;
+
+        for( let i = 0; i < sns_count; i++ ) {
+            const ser = this.chart.series[ i ], val = cur.s[ i ] / 10;
+            if( !ser || !ser.data.length ) { return; }
+            const last = ser.data[ ser.data.length - 1 ].y;
+
+            if( val !== last ) {
+                this.chart.series[ i ].addPoint( [ now, cur.s[ i ] / 10 ], false );
+                added++;
+            }
+        }
+
+        added && this.chart.redraw();
+    }
+
     getCurInfo( force ) {
         this.state.cur.load( { force } )
             .then( () => {
                 this.state.connection = true;
+                this.addPoints();
             } )
             .catch( err => {
                 console.error( err );
@@ -389,8 +410,9 @@ class Application extends React.Component {
                                 return <li key={i}>{(s && s.name) + ' ' + (t / 10)}&deg;</li>
                             } )}
                             <Button onClick={() => this.getCurInfo( true )}
-                                    variant='outline-primary'                            >Load now</Button>
-                            <div>{connection ? 'Up for ' + moment.duration( cur.up * 1000 ).humanize() : 'Connection lost'}</div>
+                                    variant='outline-primary'>Load now</Button>
+                            <div>{connection ? 'Up for ' + moment.duration( cur.up * 1000 ).humanize() :
+                                  'Connection lost'}</div>
                         </Col>
                     </Row>
                 </Tab>
