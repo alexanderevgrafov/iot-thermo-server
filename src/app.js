@@ -5,6 +5,7 @@ import * as moment from 'moment'
 import { Container, Row, Col, Form, Button, Tabs, Tab } from './Bootstrap'
 import * as ReactHighcharts from 'react-highcharts'
 import './app.scss'
+import FormLabel from 'react-bootstrap/FormLabel';
 
 //import cx from 'classnames'
 
@@ -215,6 +216,8 @@ class Application extends React.Component {
         connection    : false,
         series        : LineModel.Collection,
         plot_lines    : PlotLineModel.Collection,
+        show_relays   : false,
+        show_boots    : false,
         chart_options : {
             title  : { text : 'Temperature' },
             chart  : {
@@ -233,6 +236,10 @@ class Application extends React.Component {
     componentDidMount() {
         this.getFullState();
         this.setTimer();
+
+        this.listenTo( this.state, 'change:show_boots change:show_relays', () => {
+            this.resetPlotlines();
+        } )
     }
 
     parseState( json ) {
@@ -259,6 +266,14 @@ class Application extends React.Component {
         return ESPfetch( server_url( '/conf' ) )
             .then( json => this.parseState( json ) )
             .then( () => this.loadData() )
+    }
+
+    onToggleReboots() {
+        //this.chart.plot_lines
+    }
+
+    onToggleRelays() {
+
     }
 
     addPoints() {
@@ -343,6 +358,35 @@ class Application extends React.Component {
         } );
     };
 
+    resetPlotlines() {
+        const lines = this.state.plot_lines.map( line => {
+            const { type, value } = line,
+                  obj             = { value : value, width : 1, color : 'red', label : { text : type } };
+
+            switch( type ) {
+                case 'st':
+                    if( !this.state.show_boots ) {
+                        return null;
+                    }
+                    obj.label.text = '';
+                    obj.color      = 'rgba(0,0,0,.15)';
+                    obj.width      = 7;
+                    break;
+                case 'off':
+                    obj.color = 'blue';
+                case 'on':
+                    if( !this.state.show_relays ) {
+                        return null;
+                    }
+                    break;
+            }
+
+            return obj;
+        } );
+
+        this.chart.xAxis[ 0 ].update( { plotLines : _.compact( lines ) } )
+    }
+
     updateChart() {
         const { sensors } = this.state,
               sns_count   = sensors.length;
@@ -354,25 +398,7 @@ class Application extends React.Component {
             this.chart.series[ i ].setData( this.state.series.at( i ).data.toJSON(), false );
         }
 
-        this.state.plot_lines.each( line => {
-            const { type, value } = line,
-                  obj             = { value : value, width : 1, color : 'red', label : { text : type } };
-
-            switch( type ) {
-                case 'st':
-                    obj.label.text = '';
-                    obj.color      = 'rgba(0,0,0,.15)';
-                    obj.width      = 15;
-                    break;
-                case 'on':
-                    break;
-                case 'off':
-                    obj.color = 'blue';
-                    break;
-            }
-
-            this.chart.xAxis[ 0 ].addPlotLine( obj )
-        } );
+        this.resetPlotlines();
 
         this.chart.chartWidth = this.refs.chartbox.offsetWidth;
         this.chart.redraw();
@@ -387,8 +413,19 @@ class Application extends React.Component {
         const { conf, cur, sensors, fs, files, connection, chart_options } = this.state;
 
         return <Container>
+            <div className='top-right'>
+                <span>{connection ? 'Up for ' + moment.duration( cur.up * 1000 ).humanize() :
+                       'Connection lost'}</span>
+                <Button onClick={() => this.getCurInfo( true )}
+                        variant='outline-primary'>Load now</Button>
+            </div>
             <Tabs defaultActiveKey='chart'
-                  onSelect={key => key === 'chart' && this.chart.reflow()}
+                  onSelect={key => {
+                      key === 'chart' && setTimeout( () => {
+                          this.chart.setSize( null, null, false )
+                      }, 1000 )
+
+                  }}
             >
                 <Tab eventKey='chart' title='Chart'>
                     <Row>
@@ -409,10 +446,11 @@ class Application extends React.Component {
                                 const s = sensors.at( i );
                                 return <li key={i}>{(s && s.name) + ' ' + (t / 10)}&deg;</li>
                             } )}
-                            <Button onClick={() => this.getCurInfo( true )}
-                                    variant='outline-primary'>Load now</Button>
-                            <div>{connection ? 'Up for ' + moment.duration( cur.up * 1000 ).humanize() :
-                                  'Connection lost'}</div>
+                        </Col>
+                        <Col className='text-right'>
+                            <label><input type='checkbox' onClick={e => this.state.show_boots = e.target.checked}/>Reboots</label>
+                            <label><input type='checkbox' onClick={e => this.state.show_relays = e.target.checked}/>Relay
+                                toggles</label>
                         </Col>
                     </Row>
                 </Tab>
@@ -454,9 +492,11 @@ class Application extends React.Component {
                         </Col>
                         <Col>
                             {
-                                sensors.map( obj => <Form.Row key={obj}>
-                                        <Form.ControlLinked valueLink={obj.linkAt( 'name' )}/>
-                                        <Form.ControlLinked valueLink={obj.linkAt( 'weight' )}/>
+                                sensors.map( sns =>
+                                    <Form.Row key={sns}>
+                                        {sns.addr[ 0 ] + '-' + sns.addr[ 1 ]}
+                                        <Form.ControlLinked valueLink={sns.linkAt( 'name' )}/>
+                                        <Form.ControlLinked valueLink={sns.linkAt( 'weight' )}/>
                                     </Form.Row>
                                 )
                             }
