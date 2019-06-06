@@ -218,10 +218,13 @@ class Application extends React.Component {
         plot_lines    : PlotLineModel.Collection,
         show_relays   : false,
         show_boots    : false,
+        zoom_last     : 0,
         chart_options : {
             title  : { text : 'Temperature' },
             chart  : {
-                zoomType : 'x'
+                zoomType : 'x',
+                panKey   : 'alt',
+                panning  : true
             },
             xAxis  : {
                 type : 'datetime'
@@ -237,9 +240,8 @@ class Application extends React.Component {
         this.getFullState();
         this.setTimer();
 
-        this.listenTo( this.state, 'change:show_boots change:show_relays', () => {
-            this.resetPlotlines();
-        } )
+        this.listenTo( this.state, 'change:show_boots change:show_relays', () => this.resetPlotlines() );
+        this.listenTo( this.state, 'change:zoom_last', () => this.onSetZoomLast() );
     }
 
     parseState( json ) {
@@ -266,34 +268,6 @@ class Application extends React.Component {
         return ESPfetch( server_url( '/conf' ) )
             .then( json => this.parseState( json ) )
             .then( () => this.loadData() )
-    }
-
-    onToggleReboots() {
-        //this.chart.plot_lines
-    }
-
-    onToggleRelays() {
-
-    }
-
-    addPoints() {
-        const { sensors, cur } = this.state,
-              sns_count        = sensors.length,
-              now              = Date.now() - (new Date).getTimezoneOffset() * 60 * 1000;
-        let added              = 0;
-
-        for( let i = 0; i < sns_count; i++ ) {
-            const ser = this.chart.series[ i ], val = cur.s[ i ] / 10;
-            if( !ser || !ser.data.length ) { return; }
-            const last = ser.data[ ser.data.length - 1 ].y;
-
-            if( val !== last ) {
-                this.chart.series[ i ].addPoint( [ now, cur.s[ i ] / 10 ], false );
-                added++;
-            }
-        }
-
-        added && this.chart.redraw();
     }
 
     getCurInfo( force ) {
@@ -358,6 +332,10 @@ class Application extends React.Component {
         } );
     };
 
+    setZoomLast( min ) {
+        this.state.zoom_last = min;
+    }
+
     resetPlotlines() {
         const lines = this.state.plot_lines.map( line => {
             const { type, value } = line,
@@ -387,6 +365,37 @@ class Application extends React.Component {
         this.chart.xAxis[ 0 ].update( { plotLines : _.compact( lines ) } )
     }
 
+    addPoints() {
+        const { sensors, cur } = this.state,
+              sns_count        = sensors.length,
+              lst              = cur.last * 1000,
+              now              = Date.now() - (new Date).getTimezoneOffset() * 60 * 1000;
+        let added              = 0;
+
+        for( let i = 0; i < sns_count; i++ ) {
+            const ser = this.chart.series[ i ];
+
+            if( !ser || !ser.data.length ) { continue; }
+            this.chart.series[ i ].addPoint( [ lst, cur.s[ i ] / 10 ], false );
+            added++;
+        }
+
+        added && this.chart.redraw();
+
+        added && this.state.zoom_last && this.onSetZoomLast( now );
+    }
+
+    onSetZoomLast( _last = null ) {
+        const latest = _last || (this.chart.series[ 0 ].data[ this.chart.series[ 0 ].data.length - 1 ]).x;
+
+        this.chart.xAxis[ 0 ].setExtremes(
+            this.state.zoom_last ?
+            latest - this.state.zoom_last * 60 * 1000
+                                 : this.state.series.at( 0 ).data.at( 0 ).stamp * 1000,
+            latest
+        )
+    }
+
     updateChart() {
         const { sensors } = this.state,
               sns_count   = sensors.length;
@@ -410,12 +419,33 @@ class Application extends React.Component {
     };
 
     render() {
-        const { conf, cur, sensors, fs, files, connection, chart_options } = this.state;
+        const { conf, cur, sensors, fs, files, connection, chart_options, zoom_last, show_relays, show_boots } = this.state;
 
         return <Container>
             <div className='top-right'>
-                <span>{connection ? 'Up for ' + moment.duration( cur.up * 1000 ).humanize() :
-                       'Connection lost'}</span>
+                <div className='chart_options'>
+                    <span onClick={() => this.state.show_boots = !show_boots}
+                          className={cx( 'z_option red', { option_sel : show_boots } )}>rst</span>
+                    <span onClick={() => this.state.show_relays = !show_relays}
+                          className={cx( 'z_option red', { option_sel : show_relays } )}>tgl</span>
+                    {_.map(
+                        [ [ 30, '30m' ],
+                          [ 60 * 2, '2h' ],
+                          [ 60 * 6, '6h' ],
+                          [ 60 * 24, '24h' ],
+                          [ 60 * 24 * 7, '7d' ],
+                          [ 60 * 24 * 30, '30d' ],
+                          [ 0, 'All' ] ],
+                        ( [ min, name ] ) =>
+                            <span onClick={() => this.setZoomLast( min )}
+                                  className={cx( 'z_option', { option_sel : zoom_last === min } )}
+                                  key={min}
+                            >{name}</span> )
+                    }
+                </div>
+                <div className='up_time'>{
+                    connection ? 'Up for ' + moment.duration( cur.up * 1000 ).humanize() : 'Connection lost'
+                }</div>
                 <Button onClick={() => this.getCurInfo( true )}
                         variant='outline-primary'>Load now</Button>
             </div>
@@ -446,11 +476,6 @@ class Application extends React.Component {
                                 const s = sensors.at( i );
                                 return <li key={i}>{(s && s.name) + ' ' + (t / 10)}&deg;</li>
                             } )}
-                        </Col>
-                        <Col className='text-right'>
-                            <label><input type='checkbox' onClick={e => this.state.show_boots = e.target.checked}/>Reboots</label>
-                            <label><input type='checkbox' onClick={e => this.state.show_relays = e.target.checked}/>Relay
-                                toggles</label>
                         </Col>
                     </Row>
                 </Tab>

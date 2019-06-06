@@ -1,5 +1,39 @@
 .top-right {
-  position:absolute;
-  top:0;
-  right:0;
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+}
+
+.up_time {
+  margin: 0 1em;
+
+}
+
+.chart_options {
+  display: flex;
+}
+
+.z_option {
+  display: block;
+  margin: 0 .3em;
+  font-size: .9em;
+  cursor: pointer;
+  color: $primary;
+  padding: 2px 7px;
+  border-radius: 5px;
+}
+
+.option_sel {
+  background-color: $primary;
+  color: white !important;
+}
+
+.z_option.red {
+  color: $red;
+}
+
+.option_sel.red {
+  background-color: $red;
 }
