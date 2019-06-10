@@ -156,7 +156,31 @@ class FileModel extends Record {
 
     load() {
         return ESPfetch( server_url( '/data', { f : this.n } ) )
-//            .then( json => {                console.log( json )            } )
+    }
+
+}
+
+@define
+class FileLogRawLine extends Record {
+    static idAttribute = 'stamp';
+
+    static attributes = {
+        stamp : 0,
+        arr   : []
+    };
+
+    parse( data ) {
+        const stamp = data.shift();
+
+        return { stamp, arr : data };
+    }
+
+    toJSON() {
+        return [this.stamp, ...this.arr];
+    }
+
+    static collection = {
+        comparator : 'stamp'
     }
 }
 
@@ -216,9 +240,10 @@ class Application extends React.Component {
         connection    : false,
         series        : LineModel.Collection,
         plot_lines    : PlotLineModel.Collection,
-        show_relays   : false,
+        show_relays   : true,
         show_boots    : false,
         zoom_last     : 0,
+        local_data    : FileLogRawLine.Collection,
         chart_options : {
             title  : { text : 'Temperature' },
             chart  : {
@@ -267,14 +292,22 @@ class Application extends React.Component {
     getFullState() {
         return ESPfetch( server_url( '/conf' ) )
             .then( json => this.parseState( json ) )
-            .then( () => this.loadData() )
+            .then( () => this.loadAllData() )
     }
 
     getCurInfo( force ) {
-        this.state.cur.load( { force } )
+        const { cur : cur1 } = this.state,
+              { rel }        = cur1;
+
+        cur1.load( { force } )
             .then( () => {
+                const { cur } = this.state;
+
                 this.state.connection = true;
                 this.addPoints();
+                if( cur.rel !== rel ) {
+                    this.addPlotLine( { value : cur.last * 1000, width : 1, color : cur.rel ? 'red' : 'blue' } )
+                }
             } )
             .catch( err => {
                 console.error( err );
@@ -296,36 +329,63 @@ class Application extends React.Component {
         handler();
     };
 
-    loadData = ( file = null ) => {
-        const chunk     = file || this.state.files.last(),
+    fileToLs( file ) {
+        file.load().then( json => {
+            this.state.local_data.add( json, { parse : true } );
+            localStorage.setItem( 'data', JSON.stringify(this.state.local_data.toJSON()) );
+        } )
+    };
+
+    addDataSet = arr => {
+        const series    = [],
               sns_count = this.state.sensors.length;
 
-        chunk &&
-        chunk.load().then( json => {
-            const series = [];
+        for( let i = 0; i < sns_count; i++ ) { // cache the series refs
+            series[ i ] = this.state.series.at( i ) || this.state.series.add( {} )[ 0 ];
+        }
 
-            for( let i = 0; i < sns_count; i++ ) { // cache the series refs
-                series[ i ] = this.state.series.at( i ) || this.state.series.add( {} )[ 0 ];
-            }
-
-            _.each( json, line => {
-                if( _.isNumber( line[ 1 ] ) ) {
-                    for( let i = 0; i < sns_count; i++ ) {
-                        if( line[ 1 + i ] > -1000 ) {
-                            series[ i ].data.add( { stamp : line[ 0 ], temp : line[ 1 + i ] }, { silent : true } );
-                        }
+        _.each( arr, line => {
+            if( _.isNumber( line[ 1 ] ) ) {
+                for( let i = 0; i < sns_count; i++ ) {
+                    if( line[ 1 + i ] > -1000 ) {
+                        series[ i ].data.add( { stamp : line[ 0 ], temp : line[ 1 + i ] }, { silent : true } );
                     }
-                } else {
-                    this.state.plot_lines.add( { value : line[ 0 ] * 1000, type : line[ 1 ] }, { silent : true } );
                 }
-            } );
+            } else {
+                this.state.plot_lines.add( { value : line[ 0 ] * 1000, type : line[ 1 ] }, { silent : true } );
+            }
+        } );
+    };
+
+    loadAllData = () => {
+        this.loadLsData();
+        this.loadFileData();
+    };
+
+    loadLsData = () => {
+        let data = localStorage.getItem( 'data' );
+
+        if (data) {
+            try {
+                data = JSON.parse(data);
+                this.addDataSet( data );
+            } catch(e) {
+                alert('Loading from LS error: ' + e.message);
+            }
+        }
+    };
+
+    loadFileData = ( file = null ) => {
+        const chunk = file || this.state.files.last();
+
+        chunk &&
+        chunk.load().then( data => {
+            this.addDataSet( data );
 
             const index = this.state.files.indexOf( chunk );
 
             if( index > 0 ) {
-                _.defer( () => {
-                    this.loadData( this.state.files.at( index - 1 ) );
-                } )
+                _.defer( () => this.loadFileData( this.state.files.at( index - 1 ) ) )
             } else {
                 this.updateChart();
             }
@@ -363,6 +423,10 @@ class Application extends React.Component {
         } );
 
         this.chart.xAxis[ 0 ].update( { plotLines : _.compact( lines ) } )
+    }
+
+    addPlotLine( line ) {
+        this.chart.xAxis[ 0 ].addPlotLine( line );
     }
 
     addPoints() {
@@ -417,6 +481,10 @@ class Application extends React.Component {
         this.chart = chart;
 
     };
+
+    moveDataToLS() {
+
+    }
 
     render() {
         const { conf, cur, sensors, fs, files, connection, chart_options, zoom_last, show_relays, show_boots } = this.state;
@@ -476,6 +544,8 @@ class Application extends React.Component {
                                 const s = sensors.at( i );
                                 return <li key={i}>{(s && s.name) + ' ' + (t / 10)}&deg;</li>
                             } )}
+
+                            <Button onClick={this.moveDataToLS}>Move from chip to LS</Button>
                         </Col>
                     </Row>
                 </Tab>
@@ -531,12 +601,13 @@ class Application extends React.Component {
                         <Col>
                             <h4>Used {Math.round( fs.used * 1000 / fs.tot ) / 10}%</h4>
                             {
-                                files.map( file => <Form.Row
-                                        label={file.n + ' ' + Math.round( file.s * 10 / 1024 ) / 10 + 'Kb'}
-                                        key={file}>
-                                        <Button onClick={() => file.load()} variant='light' size='sm'>Load</Button>
+                                files.map( file => <div key={file}>
+                                    {file.n + ' ' + Math.round( file.s * 10 / 1024 ) / 10 + 'Kb'}
+                                        {/*<Button onClick={() => file.load()} variant='light' size='sm'>Load</Button>*/}
                                         <Button onClick={() => file.del()} variant='light' size='sm'>Delete</Button>
-                                    </Form.Row>
+                                        <Button onClick={() => this.fileToLs( file )} variant='light' size='sm'>to
+                                            LS</Button>
+                                    </div>
                                 )
                             }
                         </Col>

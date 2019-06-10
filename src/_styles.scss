@@ -7,8 +7,13 @@
 }
 
 .up_time {
-  margin: 0 1em;
-
+  padding: 0 1em;
+  font-size: x-small;
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  transform-origin: bottom right;
+  transform: rotate(-90deg);
 }
 
 .chart_options {
