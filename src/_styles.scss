@@ -42,3 +42,56 @@
 .option_sel.red {
   background-color: $red;
 }
+
+$loader_sx: 150px;
+$loader_sy: 150px;
+
+.loader {
+  position: fixed;
+  height: 100%;
+  width: 100%;
+  top:0;
+  left:0;
+  z-index: 10000;
+  overflow: hidden;
+  transition: background-color 2s;
+  background-color: transparentize(#fff, .3);
+  display:flex;
+  align-items: center;
+  justify-content: center;
+}
+
+
+.loaderInline {
+  position: relative;
+  width: 100%;
+  z-index: 10000;
+  display:flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.loaderAbsolute {
+  position: absolute;
+  background: transparent;
+}
+
+.loaderBody {
+  color:darkred;
+  text-align: center;
+  font-weight: 500;
+  font-size: 1.4rem;
+}
+
+.loaderImg {
+  display:block;
+  width: $loader_sx;
+  height: $loader_sy;
+  transform-origin: center center;
+  margin:0 auto;
+}
+
+.loaderInline .loaderImg {
+  width: $loader_sx / 2;
+  height: $loader_sy / 2;
+}

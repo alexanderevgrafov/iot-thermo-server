@@ -5,17 +5,12 @@ import * as moment from 'moment'
 import { Container, Row, Col, Form, Button, Tabs, Tab } from './Bootstrap'
 import * as ReactHighcharts from 'react-highcharts'
 import './app.scss'
-import FormLabel from 'react-bootstrap/FormLabel';
-
-//import cx from 'classnames'
 
 let server_ip = localStorage.getItem( 'ip' ) || '192.168.0.5';
 
 const onServerIPchange = ip => {
     localStorage.setItem( 'ip', server_ip = ip );
 };
-
-//const stampToString = stamp =>    moment( stamp ).toArray().join( ', ' );
 
 const server_url = ( path, params ) => {
     const esc = encodeURIComponent;
@@ -28,7 +23,16 @@ const server_url = ( path, params ) => {
     );
 };
 
-//const getJson = res => res.json();
+const Loader = ({label, inline, absolute, className}) =>
+    <div className={ cx('loader', {loaderInline: inline, loaderAbsolute: absolute}, className) }>
+        <div className='loaderBody'>
+            <img
+                alt="Loader"
+                className='loaderImg'
+                src='./loader.svg'/>
+            <div>{ label }</div>
+        </div>
+    </div>;
 
 const ESPfetch = ( url ) => fetch( url, {
     mode : 'cors',
@@ -37,7 +41,20 @@ const ESPfetch = ( url ) => fetch( url, {
             'Accept'       : 'text/json',
         }*/
 } )
-    .then( res => res.json() );
+    .then( res => res.text() )
+    .then( text => {
+        let json;
+        try {
+            text = text.replace(/,\s{0,}([,\]])/, '$1');
+            json = JSON.parse(text);
+        } catch(e) {
+            console.log('JSON parse failed, no matter of try to fix');
+            json = [];
+        }
+
+        return json;
+    })
+;
 
 //   .catch( err => console.error( err ) );
 
@@ -255,7 +272,8 @@ class Application extends React.Component {
                 type : 'datetime'
             },
             series : []
-        }
+        },
+        loading:true
     };
 
     timer = null;
@@ -263,10 +281,6 @@ class Application extends React.Component {
 
     componentDidMount() {
         this.getFullState();
-        this.setTimer();
-
-        this.listenTo( this.state, 'change:show_boots change:show_relays', () => this.resetPlotlines() );
-        this.listenTo( this.state, 'change:zoom_last', () => this.onSetZoomLast() );
     }
 
     parseState( json ) {
@@ -369,6 +383,7 @@ class Application extends React.Component {
             try {
                 data = JSON.parse(data);
                 this.addDataSet( data );
+                this.state.local_data.reset( data, { parse : true } );
             } catch(e) {
                 alert('Loading from LS error: ' + e.message);
             }
@@ -387,13 +402,14 @@ class Application extends React.Component {
             if( index > 0 ) {
                 _.defer( () => this.loadFileData( this.state.files.at( index - 1 ) ) )
             } else {
-                this.updateChart();
+                this.chartFillWithData();
             }
         } );
     };
 
     setZoomLast( min ) {
         this.state.zoom_last = min;
+        localStorage.setItem('zoom', min);
     }
 
     resetPlotlines() {
@@ -460,7 +476,7 @@ class Application extends React.Component {
         )
     }
 
-    updateChart() {
+    chartFillWithData() {
         const { sensors } = this.state,
               sns_count   = sensors.length;
 
@@ -473,23 +489,39 @@ class Application extends React.Component {
 
         this.resetPlotlines();
 
+        this.onChartIsReady();
+
         this.chart.chartWidth = this.refs.chartbox.offsetWidth;
         this.chart.redraw();
+
+        this.state.loading = false;
     }
 
     afterRender = chart => {
         this.chart = chart;
-
     };
+
+    onChartIsReady(){
+        this.setTimer();
+
+        this.listenTo( this.state, 'change:show_boots change:show_relays', () => this.resetPlotlines() );
+        this.listenTo( this.state, 'change:zoom_last', () => this.onSetZoomLast() );
+
+        this.state.zoom_last= localStorage.getItem('zoom') || 0;
+    }
 
     moveDataToLS() {
 
     }
 
     render() {
-        const { conf, cur, sensors, fs, files, connection, chart_options, zoom_last, show_relays, show_boots } = this.state;
+        const { loading, conf, cur, sensors, fs, files, connection, chart_options,
+                  zoom_last, show_relays, show_boots } = this.state;
 
         return <Container>
+            {
+                loading ? <Loader/> : void 0
+            }
             <div className='top-right'>
                 <div className='chart_options'>
                     <span onClick={() => this.state.show_boots = !show_boots}
@@ -544,8 +576,6 @@ class Application extends React.Component {
                                 const s = sensors.at( i );
                                 return <li key={i}>{(s && s.name) + ' ' + (t / 10)}&deg;</li>
                             } )}
-
-                            <Button onClick={this.moveDataToLS}>Move from chip to LS</Button>
                         </Col>
                     </Row>
                 </Tab>
