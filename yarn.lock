@@ -3316,6 +3316,14 @@ react-is@^16.3.2, react-is@^16.8.1:
   version "16.8.6"
   resolved "https://registry.yarnpkg.com/react-is/-/react-is-16.8.6.tgz#5bbc1e2d29141c9fbdfed456343fe2bc430a6a16"
 
+react-mvx@^3.0.0:
+  version "3.0.0"
+  resolved "https://registry.yarnpkg.com/react-mvx/-/react-mvx-3.0.0.tgz#d96c18d621cac94002ed397325df728cfc89e6fd"
+  integrity sha512-weP2r98FtQ4fGaGSRX2dsVKsAL7CcMkwwHxJ3qJbPEo7SqO1CzYTVg1bvhkurvLu7RNk5R94JQD985P8w4/WOA==
+  dependencies:
+    tslib "*"
+    valuelink "^1.0.0"
+
 react-overlays@^1.2.0:
   version "1.2.0"
   resolved "https://registry.yarnpkg.com/react-overlays/-/react-overlays-1.2.0.tgz#205368eeb0a5fb0b7f9b717fa7a12d518500abdb"
@@ -3347,13 +3355,6 @@ react-transition-group@^4.0.0:
     dom-helpers "^3.4.0"
     loose-envify "^1.4.0"
     prop-types "^15.6.2"
-
-react-type-r@3.0.0-a001:
-  version "3.0.0-a001"
-  resolved "https://registry.yarnpkg.com/react-type-r/-/react-type-r-3.0.0-a001.tgz#8e2a2190b4a85dacc17afe43477a3f9b2f5c77e7"
-  dependencies:
-    tslib "*"
-    valuelink Volicon/NestedLink
 
 react@^16.8.1:
   version "16.8.6"
@@ -4260,9 +4261,10 @@ validate-npm-package-license@^3.0.1:
     spdx-correct "^3.0.0"
     spdx-expression-parse "^3.0.0"
 
-valuelink@Volicon/NestedLink:
-  version ""
-  resolved "https://codeload.github.com/Volicon/NestedLink/tar.gz/0105d461d33108d2ab2d97b8f8da6967878844d6"
+valuelink@^1.0.0:
+  version "1.6.2"
+  resolved "https://registry.yarnpkg.com/valuelink/-/valuelink-1.6.2.tgz#1d1c4909d92ca77e37b5d3ab78bd6e2cef9f68fb"
+  integrity sha512-Y7I9SNUfNH1fzu/NXM+4oHqSpks1sqZNTNdM0srOmM2irgYB1UciTZLB5DmSfmw+meeDQKRkMuJNkER861kOhg==
 
 valuelink@^2.0.5:
   version "2.0.5"

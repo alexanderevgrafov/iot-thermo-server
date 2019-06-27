@@ -1,9 +1,9 @@
-import React, { Link } from 'react-type-r'
-import * as ReactDOM from 'react-dom'
-import { Record, define, type } from 'type-r'
-import * as moment from 'moment'
+import React, { Link }                                  from 'react-mvx'
+import * as ReactDOM                                    from 'react-dom'
+import { Record, define, type }                         from 'type-r'
+import * as moment                                      from 'moment'
 import { Container, Row, Col, Form, Button, Tabs, Tab } from './Bootstrap'
-import * as ReactHighcharts from 'react-highcharts'
+import * as ReactHighcharts                             from 'react-highcharts'
 import './app.scss'
 
 let server_ip = localStorage.getItem( 'ip' ) || '192.168.0.5';
@@ -23,11 +23,11 @@ const server_url = ( path, params ) => {
     );
 };
 
-const Loader = ({label, inline, absolute, className}) =>
-    <div className={ cx('loader', {loaderInline: inline, loaderAbsolute: absolute}, className) }>
+const Loader = ( { label, inline, absolute, className } ) =>
+    <div className={ cx( 'loader', { loaderInline : inline, loaderAbsolute : absolute }, className ) }>
         <div className='loaderBody'>
             <img
-                alt="Loader"
+                alt='Loader'
                 className='loaderImg'
                 src='./loader.svg'/>
             <div>{ label }</div>
@@ -35,25 +35,26 @@ const Loader = ({label, inline, absolute, className}) =>
     </div>;
 
 const ESPfetch = ( url ) => fetch( url, {
-    mode : 'cors',
-    /*    headers : {
-            'Content-Type' : 'text/json',
-            'Accept'       : 'text/json',
-        }*/
-} )
+          mode : 'cors',
+          /*    headers : {
+                  'Content-Type' : 'text/json',
+                  'Accept'       : 'text/json',
+              }*/
+      } )
     .then( res => res.text() )
     .then( text => {
         let json;
         try {
-            text = text.replace(/,\s{0,}([,\]])/, '$1');
-            json = JSON.parse(text);
-        } catch(e) {
-            console.log('JSON parse failed, no matter of try to fix');
+            text = text.replace( /,\s{0,}([,\]])/, '$1' );
+            json = JSON.parse( text );
+        }
+        catch( e ) {
+            console.log( 'JSON parse failed, no matter of try to fix' );
             json = [];
         }
 
         return json;
-    })
+    } )
 ;
 
 //   .catch( err => console.error( err ) );
@@ -81,7 +82,7 @@ class ConfigModel extends Record {
 class CurInfoModel extends Record {
     static attributes = {
         last : Date,
-        rel  : Boolean,
+        rel  : type(Boolean).value( null ),
         up   : 0,
         s    : [],
         avg  : 0
@@ -193,7 +194,7 @@ class FileLogRawLine extends Record {
     }
 
     toJSON() {
-        return [this.stamp, ...this.arr];
+        return [ this.stamp, ...this.arr ];
     }
 
     static collection = {
@@ -273,7 +274,7 @@ class Application extends React.Component {
             },
             series : []
         },
-        loading:true
+        loading       : true
     };
 
     timer = null;
@@ -310,16 +311,16 @@ class Application extends React.Component {
     }
 
     getCurInfo( force ) {
-        const { cur : cur1 } = this.state,
-              { rel }        = cur1;
+        const { cur : cur0 } = this.state,
+              { rel }        = cur0;
 
-        cur1.load( { force } )
+        cur0.load( { force } )
             .then( () => {
                 const { cur } = this.state;
 
                 this.state.connection = true;
                 this.addPoints();
-                if( cur.rel !== rel ) {
+                if( cur.rel !== rel && rel !== null ) {
                     this.addPlotLine( { value : cur.last * 1000, width : 1, color : cur.rel ? 'red' : 'blue' } )
                 }
             } )
@@ -334,8 +335,8 @@ class Application extends React.Component {
     };
 
     setTimer = () => {
-        const { conf, cur } = this.state,
-              handler       = () => this.getCurInfo();
+        const { conf } = this.state,
+              handler  = () => this.getCurInfo();
 
         this.stopTimer();
 
@@ -346,7 +347,7 @@ class Application extends React.Component {
     fileToLs( file ) {
         file.load().then( json => {
             this.state.local_data.add( json, { parse : true } );
-            localStorage.setItem( 'data', JSON.stringify(this.state.local_data.toJSON()) );
+            localStorage.setItem( 'data', JSON.stringify( this.state.local_data.toJSON() ) );
         } )
     };
 
@@ -379,13 +380,14 @@ class Application extends React.Component {
     loadLsData = () => {
         let data = localStorage.getItem( 'data' );
 
-        if (data) {
+        if( data ) {
             try {
-                data = JSON.parse(data);
+                data = JSON.parse( data );
                 this.addDataSet( data );
                 this.state.local_data.reset( data, { parse : true } );
-            } catch(e) {
-                alert('Loading from LS error: ' + e.message);
+            }
+            catch( e ) {
+                alert( 'Loading from LS error: ' + e.message );
             }
         }
     };
@@ -409,7 +411,7 @@ class Application extends React.Component {
 
     setZoomLast( min ) {
         this.state.zoom_last = min;
-        localStorage.setItem('zoom', min);
+        localStorage.setItem( 'zoom', min );
     }
 
     resetPlotlines() {
@@ -501,13 +503,13 @@ class Application extends React.Component {
         this.chart = chart;
     };
 
-    onChartIsReady(){
+    onChartIsReady() {
         this.setTimer();
 
         this.listenTo( this.state, 'change:show_boots change:show_relays', () => this.resetPlotlines() );
         this.listenTo( this.state, 'change:zoom_last', () => this.onSetZoomLast() );
 
-        this.state.zoom_last= localStorage.getItem('zoom') || 0;
+        this.state.zoom_last = localStorage.getItem( 'zoom' ) || 0;
     }
 
     moveDataToLS() {
@@ -515,8 +517,10 @@ class Application extends React.Component {
     }
 
     render() {
-        const { loading, conf, cur, sensors, fs, files, connection, chart_options,
-                  zoom_last, show_relays, show_boots } = this.state;
+        const {
+                  loading, conf, cur, sensors, fs, files, connection, chart_options,
+                  zoom_last, show_relays, show_boots
+              } = this.state;
 
         return <Container>
             {
@@ -524,11 +528,11 @@ class Application extends React.Component {
             }
             <div className='top-right'>
                 <div className='chart_options'>
-                    <span onClick={() => this.state.show_boots = !show_boots}
-                          className={cx( 'z_option red', { option_sel : show_boots } )}>rst</span>
-                    <span onClick={() => this.state.show_relays = !show_relays}
-                          className={cx( 'z_option red', { option_sel : show_relays } )}>tgl</span>
-                    {_.map(
+                    <span onClick={ () => this.state.show_boots = !show_boots }
+                          className={ cx( 'z_option red', { option_sel : show_boots } ) }>rst</span>
+                    <span onClick={ () => this.state.show_relays = !show_relays }
+                          className={ cx( 'z_option red', { option_sel : show_relays } ) }>tgl</span>
+                    { _.map(
                         [ [ 30, '30m' ],
                           [ 60 * 2, '2h' ],
                           [ 60 * 6, '6h' ],
@@ -537,45 +541,45 @@ class Application extends React.Component {
                           [ 60 * 24 * 30, '30d' ],
                           [ 0, 'All' ] ],
                         ( [ min, name ] ) =>
-                            <span onClick={() => this.setZoomLast( min )}
-                                  className={cx( 'z_option', { option_sel : zoom_last === min } )}
-                                  key={min}
-                            >{name}</span> )
+                            <span onClick={ () => this.setZoomLast( min ) }
+                                  className={ cx( 'z_option', { option_sel : zoom_last === min } ) }
+                                  key={ min }
+                            >{ name }</span> )
                     }
                 </div>
                 <div className='up_time'>{
                     connection ? 'Up for ' + moment.duration( cur.up * 1000 ).humanize() : 'Connection lost'
                 }</div>
-                <Button onClick={() => this.getCurInfo( true )}
+                <Button onClick={ () => this.getCurInfo( true ) }
                         variant='outline-primary'>Load now</Button>
             </div>
             <Tabs defaultActiveKey='chart'
-                  onSelect={key => {
+                  onSelect={ key => {
                       key === 'chart' && setTimeout( () => {
                           this.chart.setSize( null, null, false )
                       }, 1000 )
 
-                  }}
+                  } }
             >
                 <Tab eventKey='chart' title='Chart'>
                     <Row>
-                        <div style={{ width : '100%' }} ref='chartbox'>
+                        <div style={ { width : '100%' } } ref='chartbox'>
                             <ReactHighcharts
-                                config={chart_options}
-                                callback={this.afterRender}
-                                isPureConfig={true}
-                                height={600}
+                                config={ chart_options }
+                                callback={ this.afterRender }
+                                isPureConfig={ true }
+                                height={ 600 }
                             />
                         </div>
                     </Row>
                     <Row>
                         <Col>
-                            <h3>{connection ? cur.avg : '---'}&deg;C</h3>
-                            <h4>Relay is {cur.rel ? 'ON' : 'OFF'}</h4>
-                            {cur.s.map( ( t, i ) => {
+                            <h3>{ connection ? cur.avg : '---' }&deg;C</h3>
+                            <h4>Relay is { cur.rel ? 'ON' : 'OFF' }</h4>
+                            { cur.s.map( ( t, i ) => {
                                 const s = sensors.at( i );
-                                return <li key={i}>{(s && s.name) + ' ' + (t / 10)}&deg;</li>
-                            } )}
+                                return <li key={ i }>{ (s && s.name) + ' ' + (t / 10) }&deg;</li>
+                            } ) }
                         </Col>
                     </Row>
                 </Tab>
@@ -583,59 +587,59 @@ class Application extends React.Component {
                     <Row>
                         <Col>
                             <Form.Row label='ESP IP'>
-                                <Form.ControlLinked valueLink={Link.value( server_ip, x => {
+                                <Form.ControlLinked valueLink={ Link.value( server_ip, x => {
                                     onServerIPchange( x );
                                     this.asyncUpdate()
-                                } )}/>
+                                } ) }/>
                             </Form.Row>
-                            <Button onClick={() => this.getFullState()} variant='outline-info'>Get From ESP</Button>
+                            <Button onClick={ () => this.getFullState() } variant='outline-info'>Get From ESP</Button>
                         </Col>
                         <Col>
                             <Form.Row label='T low'>
-                                <Form.ControlLinked valueLink={conf.linkAt( 'tl' )}/>
+                                <Form.ControlLinked valueLink={ conf.linkAt( 'tl' ) }/>
                             </Form.Row>
                             <Form.Row label='T high'>
-                                <Form.ControlLinked valueLink={conf.linkAt( 'th' )}/>
+                                <Form.ControlLinked valueLink={ conf.linkAt( 'th' ) }/>
                             </Form.Row>
                             <Form.Row label='ON min'>
-                                <Form.ControlLinked valueLink={conf.linkAt( 'ton' )}/>
+                                <Form.ControlLinked valueLink={ conf.linkAt( 'ton' ) }/>
                             </Form.Row>
                             <Form.Row label='OFF min'>
-                                <Form.ControlLinked valueLink={conf.linkAt( 'toff' )}/>
+                                <Form.ControlLinked valueLink={ conf.linkAt( 'toff' ) }/>
                             </Form.Row>
                             <Form.Row label='Read each'>
-                                <Form.ControlLinked valueLink={conf.linkAt( 'read' )}/>
+                                <Form.ControlLinked valueLink={ conf.linkAt( 'read' ) }/>
                             </Form.Row>
                             <Form.Row label='Log each'>
-                                <Form.ControlLinked valueLink={conf.linkAt( 'log' )}/>
+                                <Form.ControlLinked valueLink={ conf.linkAt( 'log' ) }/>
                             </Form.Row>
                             <Form.Row label='Flush log each'>
-                                <Form.ControlLinked valueLink={conf.linkAt( 'flush' )}/>
+                                <Form.ControlLinked valueLink={ conf.linkAt( 'flush' ) }/>
                             </Form.Row>
-                            <Button onClick={() => conf.save()
-                                .then( json => this.parseState( json ) )} variant='outline-info'>Update config</Button>
+                            <Button onClick={ () => conf.save()
+                                .then( json => this.parseState( json ) ) } variant='outline-info'>Update config</Button>
                         </Col>
                         <Col>
                             {
                                 sensors.map( sns =>
-                                    <Form.Row key={sns}>
-                                        {sns.addr[ 0 ] + '-' + sns.addr[ 1 ]}
-                                        <Form.ControlLinked valueLink={sns.linkAt( 'name' )}/>
-                                        <Form.ControlLinked valueLink={sns.linkAt( 'weight' )}/>
+                                    <Form.Row key={ sns }>
+                                        { sns.addr[ 0 ] + '-' + sns.addr[ 1 ] }
+                                        <Form.ControlLinked valueLink={ sns.linkAt( 'name' ) }/>
+                                        <Form.ControlLinked valueLink={ sns.linkAt( 'weight' ) }/>
                                     </Form.Row>
                                 )
                             }
-                            <Button onClick={() => sensors.save()
-                                .then( json => this.parseState( json ) )} variant='outline-info'>Set balance</Button>
+                            <Button onClick={ () => sensors.save()
+                                .then( json => this.parseState( json ) ) } variant='outline-info'>Set balance</Button>
                         </Col>
                         <Col>
-                            <h4>Used {Math.round( fs.used * 1000 / fs.tot ) / 10}%</h4>
+                            <h4>Used { Math.round( fs.used * 1000 / fs.tot ) / 10 }%</h4>
                             {
-                                files.map( file => <div key={file}>
-                                    {file.n + ' ' + Math.round( file.s * 10 / 1024 ) / 10 + 'Kb'}
-                                        {/*<Button onClick={() => file.load()} variant='light' size='sm'>Load</Button>*/}
-                                        <Button onClick={() => file.del()} variant='light' size='sm'>Delete</Button>
-                                        <Button onClick={() => this.fileToLs( file )} variant='light' size='sm'>to
+                                files.map( file => <div key={ file }>
+                                        { file.n + ' ' + Math.round( file.s * 10 / 1024 ) / 10 + 'Kb' }
+                                        {/*<Button onClick={() => file.load()} variant='light' size='sm'>Load</Button>*/ }
+                                        <Button onClick={ () => file.del() } variant='light' size='sm'>Delete</Button>
+                                        <Button onClick={ () => this.fileToLs( file ) } variant='light' size='sm'>to
                                             LS</Button>
                                     </div>
                                 )
