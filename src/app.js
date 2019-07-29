@@ -82,7 +82,7 @@ class ConfigModel extends Record {
 class CurInfoModel extends Record {
     static attributes = {
         last : Date,
-        rel  : type(Boolean).value( null ),
+        rel  : type( Boolean ).value( null ),
         up   : 0,
         s    : [],
         avg  : 0
@@ -395,18 +395,21 @@ class Application extends React.Component {
     loadFileData = ( file = null ) => {
         const chunk = file || this.state.files.last();
 
-        chunk &&
-        chunk.load().then( data => {
-            this.addDataSet( data );
+        if( chunk ) {
+            chunk.load().then( data => {
+                this.addDataSet( data );
 
-            const index = this.state.files.indexOf( chunk );
+                const index = this.state.files.indexOf( chunk );
 
-            if( index > 0 ) {
-                _.defer( () => this.loadFileData( this.state.files.at( index - 1 ) ) )
-            } else {
-                this.chartFillWithData();
-            }
-        } );
+                if( index > 0 ) {
+                    _.defer( () => this.loadFileData( this.state.files.at( index - 1 ) ) )
+                } else {
+                    this.chartFillWithData();
+                }
+            } );
+        } else {
+            this.chartFillWithData();
+        }
     };
 
     setZoomLast( min ) {
