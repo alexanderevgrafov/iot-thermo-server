@@ -1,4 +1,6 @@
 public/build
+public/*.js
+public/*.js.map
 .env
 ._*
 .~lock.*
