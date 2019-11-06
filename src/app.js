@@ -1,30 +1,30 @@
-import React, { Link }                                  from 'react-mvx'
-import * as ReactDOM                                    from 'react-dom'
-import { Record, define, type }                         from 'type-r'
-import * as moment                                      from 'moment'
-import { Container, Row, Col, Form, Button, Tabs, Tab } from './Bootstrap'
-import * as ReactHighcharts                             from 'react-highcharts'
-import './app.scss'
+import React, { Link }                                  from "react-mvx"
+import * as ReactDOM                                    from "react-dom"
+import { Record, define, type }                         from "type-r"
+import * as moment                                      from "moment"
+import { Container, Row, Col, Form, Button, Tabs, Tab } from "./Bootstrap"
+import * as ReactHighcharts                             from "react-highcharts"
+import "./app.scss"
 
-let server_ip = localStorage.getItem( 'ip' ) || '192.168.0.5';
+let server_ip = localStorage.getItem( "ip" ) || "192.168.0.0";
 
 const onServerIPchange = ip => {
-    localStorage.setItem( 'ip', server_ip = ip );
+    localStorage.setItem( "ip", server_ip = ip );
 };
 
 const server_url = ( path, params ) => {
     const esc = encodeURIComponent;
-    return 'http://' + server_ip + path + (
+    return "http://" + server_ip + path + (
         params
-        ? '?' + Object.keys( params )
-               .map( k => esc( k ) + '=' + esc( params[ k ] ) )
-               .join( '&' )
-        : ''
+        ? "?" + Object.keys( params )
+               .map( k => esc( k ) + "=" + esc( params[ k ] ) )
+               .join( "&" )
+        : ""
     );
 };
 
 const Loader = ( { label, inline, absolute, className } ) =>
-    <div className={ cx( 'loader', { loaderInline : inline, loaderAbsolute : absolute }, className ) }>
+    <div className={ cx( "loader", { loaderInline : inline, loaderAbsolute : absolute }, className ) }>
         <div className='loaderBody'>
             <img
                 alt='Loader'
@@ -35,7 +35,7 @@ const Loader = ( { label, inline, absolute, className } ) =>
     </div>;
 
 const ESPfetch = ( url ) => fetch( url, {
-          mode : 'cors',
+          mode : "cors",
           /*    headers : {
                   'Content-Type' : 'text/json',
                   'Accept'       : 'text/json',
@@ -45,11 +45,11 @@ const ESPfetch = ( url ) => fetch( url, {
     .then( text => {
         let json;
         try {
-            text = text.replace( /,\s{0,}([,\]])/, '$1' );
+            text = text.replace( /,\s{0,}([,\]])/, "$1" );
             json = JSON.parse( text );
         }
         catch( e ) {
-            console.log( 'JSON parse failed, no matter of try to fix' );
+            console.log( "JSON parse failed, no matter of try to fix" );
             json = [];
         }
 
@@ -74,7 +74,7 @@ class ConfigModel extends Record {
     save() {
         const params = { set : JSON.stringify( this.toJSON() ) };
 
-        return ESPfetch( server_url( '/conf', params ) )
+        return ESPfetch( server_url( "/conf", params ) )
     }
 }
 
@@ -93,7 +93,7 @@ class CurInfoModel extends Record {
         if( options.force ) {
             params.f = 1;
         }
-        return ESPfetch( server_url( '/info', params ) )
+        return ESPfetch( server_url( "/info", params ) )
             .then( json => this.set( json ) )
     }
 }
@@ -111,9 +111,9 @@ class FileSystem extends Record {
 @define
 class SensorModel extends Record {
     static attributes = {
-        addr   : type( Array ).has.watcher( 'onAddrChange' ),
+        addr   : type( Array ).has.watcher( "onAddrChange" ),
         weight : 10,
-        name   : type( String ).has.watcher( 'onNameChange' ),
+        name   : type( String ).has.watcher( "onNameChange" ),
     };
 
     /*
@@ -122,11 +122,11 @@ class SensorModel extends Record {
         }
     */
     onNameChange() {
-        localStorage.setItem( '/sens/' + this.addr.join( '' ), this.name );
+        localStorage.setItem( "/sens/" + this.addr.join( "" ), this.name );
     }
 
     loadName() {
-        this.name = localStorage.getItem( '/sens/' + this.addr.join( '' ) ) || (this.addr[ 0 ] + '~' + this.addr[ 1 ]);
+        this.name = localStorage.getItem( "/sens/" + this.addr.join( "" ) ) || (this.addr[ 0 ] + "~" + this.addr[ 1 ]);
     }
 
     /*
@@ -135,7 +135,7 @@ class SensorModel extends Record {
         }
     */
     toLine() {
-        return this.addr.join( ',' ) + ',' + this.weight;
+        return this.addr.join( "," ) + "," + this.weight;
     }
 
     static collection = {
@@ -148,39 +148,39 @@ class SensorModel extends Record {
 @define
 class SensorCollection extends SensorModel.Collection {
     save() {
-        const params = { sn : this.map( x => x.toLine() ).join( ',' ) };
+        const params = { sn : this.map( x => x.toLine() ).join( "," ) };
 
-        return ESPfetch( server_url( '/conf', params ) )
+        return ESPfetch( server_url( "/conf", params ) )
     }
 }
 
 @define
 class FileModel extends Record {
     static attributes = {
-        n : '',
+        n : "",
         s : 0,
     };
 
     del() {
-        return ESPfetch( server_url( '/data', { d : this.n } ) )
+        return ESPfetch( server_url( "/data", { d : this.n } ) )
             .then( json => {
                 if( json.d ) {
                     this.collection.remove( this );
                 } else {
-                    alert( 'Nothing happened' )
+                    alert( "Nothing happened" )
                 }
             } )
     }
 
     load() {
-        return ESPfetch( server_url( '/data', { f : this.n } ) )
+        return ESPfetch( server_url( "/data", { f : this.n } ) )
     }
 
 }
 
 @define
 class FileLogRawLine extends Record {
-    static idAttribute = 'stamp';
+    static idAttribute = "stamp";
 
     static attributes = {
         stamp : 0,
@@ -198,13 +198,13 @@ class FileLogRawLine extends Record {
     }
 
     static collection = {
-        comparator : 'stamp'
+        comparator : "stamp"
     }
 }
 
 @define
 class LineDataModel extends Record {
-    static idAttribute = 'stamp';
+    static idAttribute = "stamp";
 
     static attributes = {
         stamp : 0,
@@ -216,16 +216,16 @@ class LineDataModel extends Record {
     }
 
     static collection = {
-        comparator : 'stamp'
+        comparator : "stamp"
     }
 }
 
 @define
 class PlotLineModel extends Record {
-    static idAttribute = 'value';
+    static idAttribute = "value";
 
     static attributes = {
-        type  : '',
+        type  : "",
         value : 0
     };
 
@@ -263,14 +263,14 @@ class Application extends React.Component {
         zoom_last     : 0,
         local_data    : FileLogRawLine.Collection,
         chart_options : {
-            title  : { text : 'Temperature' },
+            title  : { text : "Temperature" },
             chart  : {
-                zoomType : 'x',
-                panKey   : 'alt',
+                zoomType : "x",
+                panKey   : "alt",
                 panning  : true
             },
             xAxis  : {
-                type : 'datetime'
+                type : "datetime"
             },
             series : []
         },
@@ -286,8 +286,8 @@ class Application extends React.Component {
 
     parseState( json ) {
         const sensors =
-                  json.sn.split( ',' ).map( s => {
-                      const addr   = s.split( ' ' ),
+                  json.sn.split( "," ).map( s => {
+                      const addr   = s.split( " " ),
                             weight = addr.pop();
                       return { addr, weight }
                   } );
@@ -305,9 +305,16 @@ class Application extends React.Component {
     }
 
     getFullState() {
-        return ESPfetch( server_url( '/conf' ) )
+        return ESPfetch( server_url( "/conf" ) )
             .then( json => this.parseState( json ) )
-            .then( () => this.loadAllData() )
+            .then( () => {
+                this.state.loading = false;
+                this.loadAllData();
+            } )
+            .catch( err => {
+                console.error( "getFullState error: ", err );
+                this.state.loading = false;
+            } )
     }
 
     getCurInfo( force ) {
@@ -321,7 +328,7 @@ class Application extends React.Component {
                 this.state.connection = true;
                 this.addPoints();
                 if( cur.rel !== rel && rel !== null ) {
-                    this.addPlotLine( { value : cur.last * 1000, width : 1, color : cur.rel ? 'red' : 'blue' } )
+                    this.addPlotLine( { value : cur.last * 1000, width : 1, color : cur.rel ? "red" : "blue" } )
                 }
             } )
             .catch( err => {
@@ -347,7 +354,7 @@ class Application extends React.Component {
     fileToLs( file ) {
         file.load().then( json => {
             this.state.local_data.add( json, { parse : true } );
-            localStorage.setItem( 'data', JSON.stringify( this.state.local_data.toJSON() ) );
+            localStorage.setItem( "data", JSON.stringify( this.state.local_data.toJSON() ) );
         } )
     };
 
@@ -378,7 +385,7 @@ class Application extends React.Component {
     };
 
     loadLsData = () => {
-        let data = localStorage.getItem( 'data' );
+        let data = localStorage.getItem( "data" );
 
         if( data ) {
             try {
@@ -387,7 +394,7 @@ class Application extends React.Component {
                 this.state.local_data.reset( data, { parse : true } );
             }
             catch( e ) {
-                alert( 'Loading from LS error: ' + e.message );
+                alert( "Loading from LS error: " + e.message );
             }
         }
     };
@@ -414,26 +421,26 @@ class Application extends React.Component {
 
     setZoomLast( min ) {
         this.state.zoom_last = min;
-        localStorage.setItem( 'zoom', min );
+        localStorage.setItem( "zoom", min );
     }
 
     resetPlotlines() {
         const lines = this.state.plot_lines.map( line => {
             const { type, value } = line,
-                  obj             = { value : value, width : 1, color : 'red', label : { text : type } };
+                  obj             = { value : value, width : 1, color : "red", label : { text : type } };
 
             switch( type ) {
-                case 'st':
+                case "st":
                     if( !this.state.show_boots ) {
                         return null;
                     }
-                    obj.label.text = '';
-                    obj.color      = 'rgba(0,0,0,.15)';
+                    obj.label.text = "";
+                    obj.color      = "rgba(0,0,0,.15)";
                     obj.width      = 7;
                     break;
-                case 'off':
-                    obj.color = 'blue';
-                case 'on':
+                case "off":
+                    obj.color = "blue";
+                case "on":
                     if( !this.state.show_relays ) {
                         return null;
                     }
@@ -487,7 +494,7 @@ class Application extends React.Component {
 
         for( let i = 0; i < sns_count; i++ ) {
             if( !this.chart.series[ i ] ) {
-                this.chart.addSeries( { type : 'spline', name : sensors.at( i ).name } );
+                this.chart.addSeries( { type : "spline", name : sensors.at( i ).name } );
             }
             this.chart.series[ i ].setData( this.state.series.at( i ).data.toJSON(), false );
         }
@@ -498,8 +505,6 @@ class Application extends React.Component {
 
         this.chart.chartWidth = this.refs.chartbox.offsetWidth;
         this.chart.redraw();
-
-        this.state.loading = false;
     }
 
     afterRender = chart => {
@@ -509,10 +514,10 @@ class Application extends React.Component {
     onChartIsReady() {
         this.setTimer();
 
-        this.listenTo( this.state, 'change:show_boots change:show_relays', () => this.resetPlotlines() );
-        this.listenTo( this.state, 'change:zoom_last', () => this.onSetZoomLast() );
+        this.listenTo( this.state, "change:show_boots change:show_relays", () => this.resetPlotlines() );
+        this.listenTo( this.state, "change:zoom_last", () => this.onSetZoomLast() );
 
-        this.state.zoom_last = localStorage.getItem( 'zoom' ) || 0;
+        this.state.zoom_last = localStorage.getItem( "zoom" ) || 0;
     }
 
     moveDataToLS() {
@@ -532,41 +537,40 @@ class Application extends React.Component {
             <div className='top-right'>
                 <div className='chart_options'>
                     <span onClick={ () => this.state.show_boots = !show_boots }
-                          className={ cx( 'z_option red', { option_sel : show_boots } ) }>rst</span>
+                          className={ cx( "z_option red", { option_sel : show_boots } ) }>rst</span>
                     <span onClick={ () => this.state.show_relays = !show_relays }
-                          className={ cx( 'z_option red', { option_sel : show_relays } ) }>tgl</span>
+                          className={ cx( "z_option red", { option_sel : show_relays } ) }>tgl</span>
                     { _.map(
-                        [ [ 30, '30m' ],
-                          [ 60 * 2, '2h' ],
-                          [ 60 * 6, '6h' ],
-                          [ 60 * 24, '24h' ],
-                          [ 60 * 24 * 7, '7d' ],
-                          [ 60 * 24 * 30, '30d' ],
-                          [ 0, 'All' ] ],
+                        [ [ 30, "30m" ],
+                          [ 60 * 2, "2h" ],
+                          [ 60 * 6, "6h" ],
+                          [ 60 * 24, "24h" ],
+                          [ 60 * 24 * 7, "7d" ],
+                          [ 60 * 24 * 30, "30d" ],
+                          [ 0, "All" ] ],
                         ( [ min, name ] ) =>
                             <span onClick={ () => this.setZoomLast( min ) }
-                                  className={ cx( 'z_option', { option_sel : zoom_last === min } ) }
+                                  className={ cx( "z_option", { option_sel : zoom_last === min } ) }
                                   key={ min }
                             >{ name }</span> )
                     }
                 </div>
                 <div className='up_time'>{
-                    connection ? 'Up for ' + moment.duration( cur.up * 1000 ).humanize() : 'Connection lost'
+                    connection ? "Up for " + moment.duration( cur.up * 1000 ).humanize() : "Connection lost"
                 }</div>
                 <Button onClick={ () => this.getCurInfo( true ) }
                         variant='outline-primary'>Load now</Button>
             </div>
             <Tabs defaultActiveKey='chart'
                   onSelect={ key => {
-                      key === 'chart' && setTimeout( () => {
+                      key === "chart" && setTimeout( () => {
                           this.chart.setSize( null, null, false )
                       }, 1000 )
-
                   } }
             >
                 <Tab eventKey='chart' title='Chart'>
                     <Row>
-                        <div style={ { width : '100%' } } ref='chartbox'>
+                        <div style={ { width : "100%" } } ref='chartbox'>
                             <ReactHighcharts
                                 config={ chart_options }
                                 callback={ this.afterRender }
@@ -577,11 +581,11 @@ class Application extends React.Component {
                     </Row>
                     <Row>
                         <Col>
-                            <h3>{ connection ? cur.avg : '---' }&deg;C</h3>
-                            <h4>Relay is { cur.rel ? 'ON' : 'OFF' }</h4>
+                            <h3>{ connection ? cur.avg : "---" }&deg;C</h3>
+                            <h4>Relay is { cur.rel ? "ON" : "OFF" }</h4>
                             { cur.s.map( ( t, i ) => {
                                 const s = sensors.at( i );
-                                return <li key={ i }>{ (s && s.name) + ' ' + (t / 10) }&deg;</li>
+                                return <li key={ i }>{ (s && s.name) + " " + (t / 10) }&deg;</li>
                             } ) }
                         </Col>
                     </Row>
@@ -599,25 +603,25 @@ class Application extends React.Component {
                         </Col>
                         <Col>
                             <Form.Row label='T low'>
-                                <Form.ControlLinked valueLink={ conf.linkAt( 'tl' ) }/>
+                                <Form.ControlLinked valueLink={ conf.linkAt( "tl" ) }/>
                             </Form.Row>
                             <Form.Row label='T high'>
-                                <Form.ControlLinked valueLink={ conf.linkAt( 'th' ) }/>
+                                <Form.ControlLinked valueLink={ conf.linkAt( "th" ) }/>
                             </Form.Row>
                             <Form.Row label='ON min'>
-                                <Form.ControlLinked valueLink={ conf.linkAt( 'ton' ) }/>
+                                <Form.ControlLinked valueLink={ conf.linkAt( "ton" ) }/>
                             </Form.Row>
                             <Form.Row label='OFF min'>
-                                <Form.ControlLinked valueLink={ conf.linkAt( 'toff' ) }/>
+                                <Form.ControlLinked valueLink={ conf.linkAt( "toff" ) }/>
                             </Form.Row>
                             <Form.Row label='Read each'>
-                                <Form.ControlLinked valueLink={ conf.linkAt( 'read' ) }/>
+                                <Form.ControlLinked valueLink={ conf.linkAt( "read" ) }/>
                             </Form.Row>
                             <Form.Row label='Log each'>
-                                <Form.ControlLinked valueLink={ conf.linkAt( 'log' ) }/>
+                                <Form.ControlLinked valueLink={ conf.linkAt( "log" ) }/>
                             </Form.Row>
                             <Form.Row label='Flush log each'>
-                                <Form.ControlLinked valueLink={ conf.linkAt( 'flush' ) }/>
+                                <Form.ControlLinked valueLink={ conf.linkAt( "flush" ) }/>
                             </Form.Row>
                             <Button onClick={ () => conf.save()
                                 .then( json => this.parseState( json ) ) } variant='outline-info'>Update config</Button>
@@ -626,20 +630,21 @@ class Application extends React.Component {
                             {
                                 sensors.map( sns =>
                                     <Form.Row key={ sns }>
-                                        { sns.addr[ 0 ] + '-' + sns.addr[ 1 ] }
-                                        <Form.ControlLinked valueLink={ sns.linkAt( 'name' ) }/>
-                                        <Form.ControlLinked valueLink={ sns.linkAt( 'weight' ) }/>
+                                        { sns.addr[ 0 ] + "-" + sns.addr[ 1 ] }
+                                        <Form.ControlLinked valueLink={ sns.linkAt( "name" ) }/>
+                                        <Form.ControlLinked valueLink={ sns.linkAt( "weight" ) }/>
                                     </Form.Row>
                                 )
                             }
                             <Button onClick={ () => sensors.save()
                                 .then( json => this.parseState( json ) ) } variant='outline-info'>Set balance</Button>
                         </Col>
-                        <Col>
-                            <h4>Used { Math.round( fs.used * 1000 / fs.tot ) / 10 }%</h4>
+                        <Col>{ files.length ?
+                               <h4>Used { Math.round( fs.used * 1000 / fs.tot ) / 10 }%</h4>
+                                            : void 0 }
                             {
                                 files.map( file => <div key={ file }>
-                                        { file.n + ' ' + Math.round( file.s * 10 / 1024 ) / 10 + 'Kb' }
+                                        { file.n + " " + Math.round( file.s * 10 / 1024 ) / 10 + "Kb" }
                                         {/*<Button onClick={() => file.load()} variant='light' size='sm'>Load</Button>*/ }
                                         <Button onClick={ () => file.del() } variant='light' size='sm'>Delete</Button>
                                         <Button onClick={ () => this.fileToLs( file ) } variant='light' size='sm'>to
@@ -655,4 +660,4 @@ class Application extends React.Component {
     }
 }
 
-ReactDOM.render( React.createElement( Application, {} ), document.getElementById( 'app-mount-root' ) );
+ReactDOM.render( React.createElement( Application, {} ), document.getElementById( "app-mount-root" ) );
