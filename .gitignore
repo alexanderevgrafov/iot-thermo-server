@@ -1,5 +1,5 @@
 public/*.js
-public/app.js.map
+public/app.js.*
 .env
 ._*
 .~lock.*
