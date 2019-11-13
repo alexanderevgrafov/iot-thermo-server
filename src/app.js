@@ -14,7 +14,7 @@ const onServerIPchange = ip => {
 
 const server_url = ( path, params ) => {
     const esc = encodeURIComponent;
-    return "http://" + server_ip + path + (
+    return "http://" + server_ip + path + ".json" + (
         params
         ? "?" + Object.keys( params )
                .map( k => esc( k ) + "=" + esc( params[ k ] ) )
@@ -248,6 +248,17 @@ class LineModel extends Record {
 }
 
 @define
+class StatModel extends Record {
+    static attributes = {
+        start   : 0,
+        end     : 0,
+        time_on : 0
+    };
+
+    get duration() { return this.end - this.start; }
+}
+
+@define
 class Application extends React.Component {
     static state = {
         conf          : ConfigModel,
@@ -270,18 +281,68 @@ class Application extends React.Component {
                 panning  : true
             },
             xAxis  : {
-                type : "datetime"
+                type : "datetime",
             },
-            series : []
+            series : [],
         },
+        stat          : StatModel,
         loading       : true
     };
 
     timer = null;
     chart = null;
 
+    componentWillMount() {
+        this.state.chart_options.xAxis.events = { setExtremes : p => this.onSetExtremes( p ) }
+    }
+
     componentDidMount() {
         this.getFullState();
+    }
+
+    onSetExtremes( params ) {
+        if( params.min && params.max ) {
+            this.calcStats( params.min, params.max )
+        } else {
+            this.calcStats( this.state.series.at( 0 ).data.at( 0 ).stamp * 1000,
+                this.chart.series[ 0 ].data[ this.chart.series[ 0 ].data.length - 1 ].x );
+        }
+    }
+
+    calcStats( start, finish ) {
+        const { plot_lines, stat } = this.state;
+        let turned                 = null,
+            sum                    = 0;
+
+        for( let i = 0; i < plot_lines.length; i++ ) {
+            const p = plot_lines.at( i );
+
+            if( p.value > finish ) {
+                if( turned ) {
+                    sum += finish - turned;
+                }
+                break;
+            }
+
+            if( p.value > start ) {
+                switch( p.type ) {
+                    case "on":
+                        turned = p.value;
+                        break;
+                    case "off":
+                    case "st":
+                        if( turned ) {
+                            sum += p.value - turned;
+                            turned = null;
+                        }
+                        break;
+                }
+            }
+        }
+
+        stat.start   = start;
+        stat.end     = finish;
+        stat.time_on = sum;
     }
 
     parseState( json ) {
@@ -356,7 +417,8 @@ class Application extends React.Component {
             this.state.local_data.add( json, { parse : true } );
             localStorage.setItem( "data", JSON.stringify( this.state.local_data.toJSON() ) );
         } )
-    };
+    }
+    ;
 
     addDataSet = arr => {
         const series    = [],
@@ -527,7 +589,7 @@ class Application extends React.Component {
     render() {
         const {
                   loading, conf, cur, sensors, fs, files, connection, chart_options,
-                  zoom_last, show_relays, show_boots
+                  zoom_last, show_relays, show_boots, stat
               } = this.state;
 
         return <Container>
@@ -547,6 +609,7 @@ class Application extends React.Component {
                           [ 60 * 24, "24h" ],
                           [ 60 * 24 * 7, "7d" ],
                           [ 60 * 24 * 30, "30d" ],
+                          [ 60 * 24 * 30 * 3, "90d" ],
                           [ 0, "All" ] ],
                         ( [ min, name ] ) =>
                             <span onClick={ () => this.setZoomLast( min ) }
@@ -587,6 +650,13 @@ class Application extends React.Component {
                                 const s = sensors.at( i );
                                 return <li key={ i }>{ (s && s.name) + " " + (t / 10) }&deg;</li>
                             } ) }
+                        </Col>
+                        <Col>
+                            By period of <b>~{ moment.duration( stat.duration ).humanize() }</b> relay
+                            was { stat.time_on > 0 ? <span>on
+                            for <b>~{ moment.duration( stat.time_on ).humanize() }
+                                , { stat.duration ? Math.round( stat.time_on * 1000 / stat.duration ) / 10 :
+                                    "--" }%</b></span> : " off" }
                         </Col>
                     </Row>
                 </Tab>
