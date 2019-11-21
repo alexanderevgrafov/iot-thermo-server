@@ -2,11 +2,17 @@ import React, { Link }                                  from "react-mvx"
 import * as ReactDOM                                    from "react-dom"
 import { Record, define, type }                         from "type-r"
 import * as moment                                      from "moment"
+import * as momentDurationFormatSetup                   from "moment-duration-format"
+import DonutChart                                       from "./DonutChart"
 import { Container, Row, Col, Form, Button, Tabs, Tab } from "./Bootstrap"
 import * as ReactHighcharts                             from "react-highcharts"
 import "./app.scss"
 
 let server_ip = localStorage.getItem( "ip" ) || "192.168.0.0";
+momentDurationFormatSetup( moment );
+
+const myHumanizer = dur => moment.duration( dur )
+    .format( "y\u00A0[г] M\u00A0[мс] W\u00A0[нед] D\u00A0[дн] H\u00A0[ч] m\u00A0[мин]", { trim : "all", largest : 2 } );
 
 const onServerIPchange = ip => {
     localStorage.setItem( "ip", server_ip = ip );
@@ -269,9 +275,9 @@ class Application extends React.Component {
         connection    : false,
         series        : LineModel.Collection,
         plot_lines    : PlotLineModel.Collection,
-        show_relays   : true,
+        show_relays   : false,
         show_boots    : false,
-        zoom_last     : 0,
+        zoom_last     : 1,
         local_data    : FileLogRawLine.Collection,
         chart_options : {
             title  : { text : "Temperature" },
@@ -293,11 +299,30 @@ class Application extends React.Component {
     chart = null;
 
     componentWillMount() {
-        this.state.chart_options.xAxis.events = { setExtremes : p => this.onSetExtremes( p ) }
+        this.loadPreferences();
+        this.state.chart_options.xAxis.events = {
+            setExtremes : p => this.onSetExtremes( p )
+        }
     }
 
     componentDidMount() {
         this.getFullState();
+    }
+
+    savePreferences() {
+        localStorage.setItem( "prefs",
+            JSON.stringify( _.pick( this.state, "show_relays", "show_boots", "zoom_last" ) ) );
+    }
+
+    loadPreferences() {
+        const loaded = localStorage.getItem( "prefs" );
+
+        try {
+            this.state.set( JSON.parse( loaded || "{}" ) );
+        }
+        catch( e ) {
+            console.error( "Prefs parse error", e );
+        }
     }
 
     onSetExtremes( params ) {
@@ -481,9 +506,8 @@ class Application extends React.Component {
         }
     };
 
-    setZoomLast( min ) {
+    setZoom( min ) {
         this.state.zoom_last = min;
-        localStorage.setItem( "zoom", min );
     }
 
     resetPlotlines() {
@@ -536,10 +560,10 @@ class Application extends React.Component {
 
         added && this.chart.redraw();
 
-        added && this.state.zoom_last && this.onSetZoomLast( now );
+        added && this.state.zoom_last && this.onSetZoom( now );
     }
 
-    onSetZoomLast( _last = null ) {
+    onSetZoom( _last = null ) {
         const latest = _last || (this.chart.series[ 0 ].data[ this.chart.series[ 0 ].data.length - 1 ]).x;
 
         this.chart.xAxis[ 0 ].setExtremes(
@@ -576,10 +600,16 @@ class Application extends React.Component {
     onChartIsReady() {
         this.setTimer();
 
-        this.listenTo( this.state, "change:show_boots change:show_relays", () => this.resetPlotlines() );
-        this.listenTo( this.state, "change:zoom_last", () => this.onSetZoomLast() );
+        this.listenTo( this.state, "change:show_boots change:show_relays", () => {
+            this.savePreferences();
+            this.resetPlotlines();
+        } );
+        this.listenTo( this.state, "change:zoom_last", () => {
+            this.savePreferences();
+            this.onSetZoom();
+        } );
 
-        this.state.zoom_last = localStorage.getItem( "zoom" ) || 0;
+        this.onSetZoom();
     }
 
     moveDataToLS() {
@@ -590,7 +620,8 @@ class Application extends React.Component {
         const {
                   loading, conf, cur, sensors, fs, files, connection, chart_options,
                   zoom_last, show_relays, show_boots, stat
-              } = this.state;
+              }         = this.state;
+        const percentOn = stat.duration ? Math.round( stat.time_on * 1000 / stat.duration ) / 10 : 0;
 
         return <Container>
             {
@@ -599,9 +630,9 @@ class Application extends React.Component {
             <div className='top-right'>
                 <div className='chart_options'>
                     <span onClick={ () => this.state.show_boots = !show_boots }
-                          className={ cx( "z_option red", { option_sel : show_boots } ) }>rst</span>
+                          className={ cx( "z_option red", { option_sel : show_boots } ) }>перезагрузки</span>
                     <span onClick={ () => this.state.show_relays = !show_relays }
-                          className={ cx( "z_option red", { option_sel : show_relays } ) }>tgl</span>
+                          className={ cx( "z_option red", { option_sel : show_relays } ) }>включения</span>
                     { _.map(
                         [ [ 30, "30m" ],
                           [ 60 * 2, "2h" ],
@@ -612,14 +643,14 @@ class Application extends React.Component {
                           [ 60 * 24 * 30 * 3, "90d" ],
                           [ 0, "All" ] ],
                         ( [ min, name ] ) =>
-                            <span onClick={ () => this.setZoomLast( min ) }
+                            <span onClick={ () => this.setZoom( min ) }
                                   className={ cx( "z_option", { option_sel : zoom_last === min } ) }
                                   key={ min }
                             >{ name }</span> )
                     }
                 </div>
                 <div className='up_time'>{
-                    connection ? "Up for " + moment.duration( cur.up * 1000 ).humanize() : "Connection lost"
+                    connection ? "Аптайм " + myHumanizer( cur.up * 1000 ) : "Нет связи с платой"
                 }</div>
                 <Button onClick={ () => this.getCurInfo( true ) }
                         variant='outline-primary'>Load now</Button>
@@ -631,7 +662,7 @@ class Application extends React.Component {
                       }, 1000 )
                   } }
             >
-                <Tab eventKey='chart' title='Chart'>
+                <Tab eventKey='chart' title='Данные'>
                     <Row>
                         <div style={ { width : "100%" } } ref='chartbox'>
                             <ReactHighcharts
@@ -643,24 +674,32 @@ class Application extends React.Component {
                         </div>
                     </Row>
                     <Row>
-                        <Col>
+                        <Col lg='3'>
                             <h3>{ connection ? cur.avg : "---" }&deg;C</h3>
-                            <h4>Relay is { cur.rel ? "ON" : "OFF" }</h4>
+                            <h4 className={ cx( "relay", { on : cur.rel } ) }>Обогрев { cur.rel ? "включен" :
+                                                                                        "выключен" }</h4>
                             { cur.s.map( ( t, i ) => {
                                 const s = sensors.at( i );
                                 return <li key={ i }>{ (s && s.name) + " " + (t / 10) }&deg;</li>
                             } ) }
                         </Col>
-                        <Col>
-                            By period of <b>~{ moment.duration( stat.duration ).humanize() }</b> relay
-                            was { stat.time_on > 0 ? <span>on
-                            for <b>~{ moment.duration( stat.time_on ).humanize() }
-                                , { stat.duration ? Math.round( stat.time_on * 1000 / stat.duration ) / 10 :
-                                    "--" }%</b></span> : " off" }
+                        <Col lg='6'/>
+                        <Col lg='3'>
+                            <div className='square-form'>
+                                <DonutChart sectors={ [ { value : percentOn, color : "red" },
+                                                        { value : 100 - percentOn, color : "silver" } ] }
+                                />
+                                <div className='percent-text'>
+                                    { stat.duration ? percentOn : "--" }%
+                                </div>
+                            </div>
+                            В течение этих { myHumanizer( stat.duration ) }
+                            { stat.time_on > 0 ? <span> обогревало { myHumanizer( stat.time_on ) }
+                                 </span> : " не включалось" }
                         </Col>
                     </Row>
                 </Tab>
-                <Tab eventKey='config' title='Config'>
+                <Tab eventKey='config' title='Конфигурация'>
                     <Row>
                         <Col>
                             <Form.Row label='ESP IP'>

@@ -95,3 +95,61 @@ $loader_sy: 150px;
   width: $loader_sx / 2;
   height: $loader_sy / 2;
 }
+
+h4.relay {
+  padding:5px;
+  border-radius:5px;
+  color:darkgreen;
+}
+
+h4.relay.on {
+  color:white;
+  background-color:darkgreen;
+  text-align: center;
+}
+
+.donut-chart{
+  position: absolute;
+  top:0;
+  g.sector {
+    pointer-events: none;
+
+    path.color { pointer-events: visible;
+      &.ghost {
+        fill: gray;
+      }
+    }
+  }
+
+  path.color {
+    stroke: none;
+  }
+
+  g.strokes,
+  path.line {
+    stroke-width: .5px;
+    stroke: gray;
+    fill: none;
+    pointer-events: none;
+  }
+}
+
+.square-form {
+  width:100%;
+  padding-top:100%;
+ // background-color:#ffdddd;
+  position: relative;
+  .percent-text {
+    position: absolute;
+    top:0; left:0; right:0; bottom:0;
+    display: flex;
+    align-content: center;
+    justify-content: center;
+    color: red;
+    font-weight: bold;
+    font-size: 1.8rem;
+    text-align: center;
+    font-family: Georgia;
+    align-items: center;
+  }
+}
