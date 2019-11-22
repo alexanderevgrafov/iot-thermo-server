@@ -5,7 +5,7 @@ const webpack = require( 'webpack' ),
       package_json = require( './package.json' ),
       develop = process.argv.indexOf( '--env.develop' ) >= 0,
 
-      dist = path.join( __dirname, process.env.WEBPACK_DIST || 'public' ),
+      dist = path.join( __dirname, process.env.WEBPACK_DIST || 'public/build' ),
 
       plugins = [ ];
 
