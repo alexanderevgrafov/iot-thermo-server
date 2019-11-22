@@ -672,32 +672,35 @@ class Application extends React.Component {
                                 height={ 600 }
                             />
                         </div>
+                        { !connection ? <h2>Нет данных</h2> : void 0 }
                     </Row>
-                    <Row>
-                        <Col lg='3'>
-                            <h3>{ connection ? cur.avg : "---" }&deg;C</h3>
-                            <h4 className={ cx( "relay", { on : cur.rel } ) }>Обогрев { cur.rel ? "включен" :
-                                                                                        "выключен" }</h4>
-                            { cur.s.map( ( t, i ) => {
-                                const s = sensors.at( i );
-                                return <li key={ i }>{ (s && s.name) + " " + (t / 10) }&deg;</li>
-                            } ) }
-                        </Col>
-                        <Col lg='6'/>
-                        <Col lg='3'>
-                            <div className='square-form'>
-                                <DonutChart sectors={ [ { value : percentOn, color : "red" },
-                                                        { value : 100 - percentOn, color : "silver" } ] }
-                                />
-                                <div className='percent-text'>
-                                    { stat.duration ? percentOn : "--" }%
-                                </div>
-                            </div>
-                            В течение этих { myHumanizer( stat.duration ) }
-                            { stat.time_on > 0 ? <span> обогревало { myHumanizer( stat.time_on ) }
+                    { connection ?
+                      <Row>
+                          <Col lg='3'>
+                              <h3>{ connection ? cur.avg : "---" }&deg;C</h3>
+                              <h4 className={ cx( "relay", { on : cur.rel } ) }>Обогрев { cur.rel ? "включен" :
+                                                                                          "выключен" }</h4>
+                              { cur.s.map( ( t, i ) => {
+                                  const s = sensors.at( i );
+                                  return <li key={ i }>{ (s && s.name) + " " + (t / 10) }&deg;</li>
+                              } ) }
+                          </Col>
+                          <Col lg='6'/>
+                          <Col lg='3'>
+                              <div className='square-form'>
+                                  <DonutChart sectors={ [ { value : percentOn, color : "red" },
+                                                          { value : 100 - percentOn, color : "silver" } ] }
+                                  />
+                                  <div className='percent-text'>
+                                      { stat.duration ? percentOn : "--" }%
+                                  </div>
+                              </div>
+                              В течение этих { myHumanizer( stat.duration ) }
+                              { stat.time_on > 0 ? <span> обогревало { myHumanizer( stat.time_on ) }
                                  </span> : " не включалось" }
-                        </Col>
-                    </Row>
+                          </Col>
+                      </Row> : void 0
+                    }
                 </Tab>
                 <Tab eventKey='config' title='Конфигурация'>
                     <Row>
