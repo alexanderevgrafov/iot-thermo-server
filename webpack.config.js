@@ -74,6 +74,10 @@ let config = {
             {
                 test  : /\.(jpg|png|ttf|eot|svg|otf)(\?v=[0-9]\.[0-9]\.[0-9])?$/,
                 loader: 'file-loader?name=assets/[name].[hash:5].[ext]'
+            },
+            {
+                test  : /\.txt?$/,
+                loader: 'raw-loader'
             }
         ]
     }

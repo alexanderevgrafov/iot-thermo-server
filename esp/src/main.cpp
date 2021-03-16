@@ -274,7 +274,7 @@ void _flush_log()
 
 //Serial.print("): ");
 
-  if (start==0 || data_log_pointer==0) {   // мы пишем лог только если знаем настоящее время.  
+  if (start==0 || data_log_pointer==0) {   // мы пишем лог только если знаем настоящее время.
     return;
   }
 
@@ -297,7 +297,7 @@ void _flush_log()
     case 'n':    data = ",\"on\"";    break;
     case 'f':    data = ",\"off\"";    break;
     case 'b':        data = ",\"st\"";    break;
-    }  
+    }
 
     // меленькое число в stamp означает что запись была добавлена ДО синхронизации со временем и является числом секунд со старта.
     line = "[" + String(data_log[i].stamp > 900000000? data_log[i].stamp : now_is - millis()/1000 + data_log[i].stamp) + data + "]";
@@ -392,6 +392,7 @@ void setTimers()
   tickers[2].attach(conf.flush, _flush_log);
 
   _scan_sensors();
+  _log_data();// TODO - added this line to log as soon as possible after board restart. If not, first log record can be found after 'conf.log' from restart (and this period is about few hours, which is not nice is final graph)
 }
 
 void sensorsPrepareAddresses()
@@ -654,7 +655,7 @@ void handleConfig()
     setTimers();
     timers_hour_aligned = false;
   }
-  
+
   if (server.arg("sn").length() > 0)
   {
     String line = server.arg("sn");
@@ -746,7 +747,7 @@ void WiFi_setup()
     wifiManager.setConfigPortalTimeout(30); //If no access point name has been previously entered disable timeout.
 
 wifiManager.autoConnect("ESP8266_192.168.4.1");
- /* if ( ) 
+ /* if ( )
   {
      Serial.println("Opening configuration portal");
     //    digitalWrite(PIN_LED, LOW);
