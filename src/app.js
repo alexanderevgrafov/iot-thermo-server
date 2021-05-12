@@ -4,17 +4,20 @@ import {Record, define, type} from 'type-r'
 import * as dayjs from 'dayjs'
 import * as ExcelJS from 'exceljs'
 import * as duration from 'dayjs/plugin/duration'
+import * as utc from 'dayjs/plugin/utc'
 import DonutChart from './DonutChart'
 import {Container, Row, Col, Form, Button, Tabs, Tab} from './Bootstrap'
 import * as ReactHighcharts from 'react-highcharts'
 import './app.scss'
 
+dayjs.extend(utc)
 dayjs.extend(duration)
 
 let server_ip = localStorage.getItem('ip') || '192.168.0.0';
 
 const myHumanizer = dur => dayjs.duration(dur)
-  .format('y\u00A0[г] M\u00A0[мес] W\u00A0[нед] D\u00A0[дн] H\u00A0[ч] m\u00A0[мин]', {trim: 'all', largest: 2});
+  .format(' Y\u00A0[г] M\u00A0[мес] D\u00A0[дн] H\u00A0[ч] m\u00A0[мин]')
+  .replace(/\s0\s[^\d\s]+/g,'');
 
 const onServerIPchange = ip => {
   localStorage.setItem('ip', server_ip = ip);
@@ -42,7 +45,9 @@ const Loader = ({label, inline, absolute, className}) =>
     </div>
   </div>;
 
-const realFetch = url => fetch(url, {mode: 'cors'}).then(res => res.text());
+const realFetch = url => fetch(url, {mode: 'cors'}).then(res => {
+  return res.text()
+} );
 /*const mockFetch = url => {
   const _url = decodeURI(url);
   const urlMap = {
@@ -79,7 +84,7 @@ const ESPfetch = (url, fixData) => realFetch(url)
 
     try {
       if (fixData) {
-        const regexp = /(\[\d+,("\w+"|-?\d+,-?\d+,-?\d+,-?\d+)\])/g;
+        const regexp = /(\[\d+,("\w+"|(-?\d+,?){1,})\])/g;
         const result = regexp[Symbol.matchAll](text);
         const array = Array.from(result, x => x[0]);
 
@@ -527,12 +532,19 @@ class Application extends React.Component {
         data = JSON.parse(data);
 
         this.state.localData.reset(data, {parse: true});
-        this.state.lsState.oldestYear = dayjs(this.state.localData.first().stamp * 1000).year();
+
+        const first = this.state.localData.first();
+        this.state.lsState.oldestYear = (first ? dayjs(first.stamp * 1000) : dayjs()).year();
       } catch (e) {
-        alert('Loading from LS error: ' + e.message);
+        this.logStatus('Loading from LS error. LS data considered as empty.');
+        this.state.localData.reset();
       }
     }
   };
+
+  logStatus(msg) {
+    alert(msg);
+  }
 
   loadFileData = (file = null, lastFileDataToLoad) => {
     const chunk = file || this.state.files.last();
@@ -598,7 +610,7 @@ class Application extends React.Component {
       const ser = this.chart.series[i];
 
       if (!ser || !ser.data.length) {
-        continue;
+        this.fillChartSeriaWithData(i);
       }
       this.chart.series[i].addPoint([lst, cur.s[i] / 10], false);
       added++;
@@ -610,7 +622,7 @@ class Application extends React.Component {
   }
 
   getLatestChartTime() {
-    return (this.chart.series[0].data[this.chart.series[0].data.length - 1]).x;
+    return this.chart.series[0].data.length ?  (this.chart.series[0].data[this.chart.series[0].data.length - 1]).x : Date.now();
   }
 
   setZoom(time) {
@@ -685,10 +697,7 @@ class Application extends React.Component {
     });
 
     for (let i = 0; i < sns_count; i++) {
-      if (!this.chart.series[i]) {
-        this.chart.addSeries({type: 'spline', name: sensors.at(i).name});
-      }
-      this.chart.series[i].setData(series[i].data.toJSON(), false);
+      this.fillChartSeriaWithData(i);
     }
 
     this.resetPlotLines();
@@ -698,6 +707,16 @@ class Application extends React.Component {
     this.chart.redraw();
 
     localStorage.setItem('data', JSON.stringify(localData.toJSON()));
+  }
+
+  fillChartSeriaWithData(seriaIndex){
+    const seria = this.state.series.at(seriaIndex);
+
+    if (!this.chart.series[seriaIndex]) {
+      this.chart.addSeries({type: 'spline', name: this.state.sensors.at(seriaIndex).name});
+    }
+
+    this.chart.series[seriaIndex].setData(seria.data.toJSON(), false);
   }
 
   afterRender = chart => {
