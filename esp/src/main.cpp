@@ -1,5 +1,3 @@
-//#include <Time.h>
-//#include <TimeLib.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
@@ -115,7 +113,7 @@ bool led_status_prev = false;
 
 timeval tv;
 timespec tp;
-struct tm *ti;
+struct tm *t_tmp;
 
 time_t now_is;
 time_t start;
@@ -134,27 +132,27 @@ void _flush_log(void);
 /*
 void stampToString(time_t stamp, char *buffer)
 {
-  ti = localtime(&stamp);
+  t_tmp = localtime(&stamp);
 
   if (stamp < 3600)
   {
-    sprintf(buffer, "%02d:%02d", ti->tm_min, ti->tm_sec);
+    sprintf(buffer, "%02d:%02d", t_tmp->tm_min, t_tmp->tm_sec);
   }
   else if (stamp < 3600 * 24)
   {
-    sprintf(buffer, "%02d:%02d:%02d", ti->tm_hour, ti->tm_min, ti->tm_sec);
+    sprintf(buffer, "%02d:%02d:%02d", t_tmp->tm_hour, t_tmp->tm_min, t_tmp->tm_sec);
   }
   else if (stamp < 3600 * 24 * 50)
   {
-    sprintf(buffer, "%02dd %02d:%02d:%02d", ti->tm_mday, ti->tm_hour, ti->tm_min, ti->tm_sec);
+    sprintf(buffer, "%02dd %02d:%02d:%02d", t_tmp->tm_mday, t_tmp->tm_hour, t_tmp->tm_min, t_tmp->tm_sec);
   }
   else if (stamp < 3600 * 24 * 365)
   {
-    sprintf(buffer, "%02dm %02dd %02d:%02d:%02d", ti->tm_mon + 1, ti->tm_mday, ti->tm_hour, ti->tm_min, ti->tm_sec);
+    sprintf(buffer, "%02dm %02dd %02d:%02d:%02d", t_tmp->tm_mon + 1, t_tmp->tm_mday, t_tmp->tm_hour, t_tmp->tm_min, t_tmp->tm_sec);
   }
   else
   {
-    sprintf(buffer, "%04d/%02d/%02d  %02d:%02d:%02d", ti->tm_year + 1900, ti->tm_mon + 1, ti->tm_mday, ti->tm_hour, ti->tm_min, ti->tm_sec);
+    sprintf(buffer, "%04d/%02d/%02d  %02d:%02d:%02d", t_tmp->tm_year + 1900, t_tmp->tm_mon + 1, t_tmp->tm_mday, t_tmp->tm_hour, t_tmp->tm_min, t_tmp->tm_sec);
   }
 }
 */
@@ -190,10 +188,8 @@ void server_send(String smth)
 }
 void genFilename(String *filename)
 {
-  ti = localtime(&now_is);
-  *filename = DATA_DIR + String(ti->tm_year - 100) + "_" + String(ti->tm_mon + 1) + "_"  + String(ti->tm_mday); //+ String(10*(ti->tm_mday/8));
-  // filename += "_";
-  // filename += ti->tm_hour;
+  t_tmp = localtime(&now_is);
+  *filename = DATA_DIR + String(t_tmp->tm_year - 100) + "_" + String(t_tmp->tm_mon + 1) + "_"  + String(t_tmp->tm_mday); //+ String(10*(t_tmp->tm_mday/8));
 }
 
 void setCurrentEvent(char type) {
@@ -278,33 +274,39 @@ void _flush_log()
     return;
   }
 
-  for (int i = 0; i < data_log_pointer; i++)
-  {
-    if (i > 0)
-    {
-      all += ",";
-    }
+  for (int i = 0; i < data_log_pointer; i++) {
     String line, data = "";
 
-    switch (data_log[i].event) {
-      case 't':
-    for (int k = 0; k < sensors_count; k++)
-    {
-      data += ",";
-      data += data_log[i].t[k];
-    }
-    break;
-    case 'n':    data = ",\"on\"";    break;
-    case 'f':    data = ",\"off\"";    break;
-    case 'b':        data = ",\"st\"";    break;
+    if (i > 0) {
+      all += ",";
     }
 
-    // меленькое число в stamp означает что запись была добавлена ДО синхронизации со временем и является числом секунд со старта.
-    line = "[" + String(data_log[i].stamp > 900000000? data_log[i].stamp : now_is - millis()/1000 + data_log[i].stamp) + data + "]";
+    if (data_log[i].event == 'b') {
+        data = ",\"st\"";
+    } else {
+        for (int k = 0; k < sensors_count; k++){
+            data += ",";
+            data += data_log[i].t[k];
+        }
+        switch (data_log[i].event) {
+            case 'n':  data += ",\"on\"";  break;
+            case 'f':  data += ",\"off\"";  break;
+        }
+    }
+
+    // маленькое число в stamp означает что запись была добавлена ДО синхронизации со временем и является числом секунд со старта.
+    time_t time = data_log[i].stamp > 900000000? data_log[i].stamp : (time_t)(now_is - millis()/1000 + data_log[i].stamp);
+
+    t_tmp = localtime(&time);
+
+    char buffer[12];
+    sprintf(buffer, "%02d%02d%02d%02d%02d", t_tmp->tm_year - 100, t_tmp->tm_mon + 1, t_tmp->tm_mday, t_tmp->tm_hour, t_tmp->tm_min);
+
+    line = "[" + String(buffer) + data + "]";
 
     all += line;
 
-   // Serial.print(data);
+    Serial.print(line);
   }
 
   writeToFile(&all);
@@ -312,8 +314,7 @@ void _flush_log()
   data_log_pointer = 0;
 }
 
-void setRelay(bool set)
-{
+void setRelay(bool set) {
   relay_on = set;
 
   digitalWrite(RELAY_PIN, relay_on ? HIGH : LOW);
@@ -323,19 +324,15 @@ void setRelay(bool set)
 
   relay_switched_at = now_is;
 
-  _log_data();
+//  _log_data();
 
   setCurrentEvent(relay_on ? 'n' : 'f');
 
   _log_data();
   _flush_log();
-
-//  now_is = time(nullptr);
-//  writeToFile(&line);
 }
 
-void _scan_sensors()
-{
+void _scan_sensors() {
   float tC, w, ws = 0, average = 0;
 
   gettimeofday(&tv, nullptr);
@@ -390,17 +387,13 @@ void setTimers()
   tickers[0].attach(conf.read, _scan_sensors);
   tickers[1].attach(conf.log, _log_data);
   tickers[2].attach(conf.flush, _flush_log);
-
-  _scan_sensors();
-  _log_data();// TODO - added this line to log as soon as possible after board restart. If not, first log record can be found after 'conf.log' from restart (and this period is about few hours, which is not nice is final graph)
 }
 
 void sensorsPrepareAddresses()
 {
   //String msg;
 
-  for (byte i = 0; i < sensors_count; i++)
-  {
+  for (byte i = 0; i < sensors_count; i++) {
     //  msg = "Sensor ";
     DS18B20.getAddress((uint8_t *)&sensor[i].addr, (uint8_t)i);
 
@@ -653,6 +646,8 @@ void handleConfig()
     Serial.print(server.arg("set"));
 
     setTimers();
+    _log_data();// TODO - added this line to log as soon as possible after board restart. If not, first log record can be found after 'conf.log' from restart (and this period is about few hours, which is not nice is final graph)
+
     timers_hour_aligned = false;
   }
 
@@ -730,7 +725,6 @@ void is_wifi_connected(){
     Serial.print("IP is ");
     Serial.println(WiFi.localIP());
   }
-
 }
 
 void WiFi_setup()
@@ -744,18 +738,10 @@ void WiFi_setup()
   Serial.println("Waiting wifi");
 
   if (WiFi.SSID() != "")
-    wifiManager.setConfigPortalTimeout(30); //If no access point name has been previously entered disable timeout.
+    wifiManager.setConfigPortalTimeout(60); //If no access point name has been previously entered disable timeout.
 
-wifiManager.autoConnect("ESP8266_192.168.4.1");
- /* if ( )
-  {
-     Serial.println("Opening configuration portal");
-    //    digitalWrite(PIN_LED, LOW);
+    wifiManager.autoConnect("ESP8266_192.168.4.1");
 
-    wifiManager.startConfigPortal();
-  }
-*/
- // WiFi.printDiag(Serial);
 
   is_wifi_connected();
 
@@ -784,7 +770,7 @@ void setup()
 
   WiFi_setup();
 
-      sensors_count = DS18B20.getDeviceCount();
+    sensors_count = DS18B20.getDeviceCount();
     sensors_count = MAX_SENSORS_COUNT > sensors_count ? sensors_count : MAX_SENSORS_COUNT;
 
     configFromFile();
@@ -797,6 +783,8 @@ void setup()
 
     setTimers();
 
+    _scan_sensors();
+    _log_data();
 }
 
 void loop()
