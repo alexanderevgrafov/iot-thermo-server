@@ -191,7 +191,7 @@ void server_send(String smth)
 void genFilename(String *filename)
 {
   ti = localtime(&now_is);
-  *filename = DATA_DIR + String(ti->tm_year - 100) + "_" + String(ti->tm_mon + 1) + "_" + String(10*(ti->tm_mday/8));
+  *filename = DATA_DIR + String(ti->tm_year - 100) + "_" + String(ti->tm_mon + 1) + "_"  + String(ti->tm_mday); //+ String(10*(ti->tm_mday/8));
   // filename += "_";
   // filename += ti->tm_hour;
 }
@@ -226,7 +226,7 @@ void writeToFile(String *line)
   if (!is_new_file)
     file.print(',');
 
-  file.println(*line);
+  file.print(*line);
   file.close();
 }
 

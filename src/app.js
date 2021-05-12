@@ -17,7 +17,7 @@ let server_ip = localStorage.getItem('ip') || '192.168.0.0';
 
 const myHumanizer = dur => dayjs.duration(dur)
   .format(' Y\u00A0[г] M\u00A0[мес] D\u00A0[дн] H\u00A0[ч] m\u00A0[мин]')
-  .replace(/\s0\s[^\d\s]+/g,'');
+  .replace(/\s0\s[^\d\s]+/g, '');
 
 const onServerIPchange = ip => {
   localStorage.setItem('ip', server_ip = ip);
@@ -47,7 +47,7 @@ const Loader = ({label, inline, absolute, className}) =>
 
 const realFetch = url => fetch(url, {mode: 'cors'}).then(res => {
   return res.text()
-} );
+});
 /*const mockFetch = url => {
   const _url = decodeURI(url);
   const urlMap = {
@@ -342,7 +342,7 @@ class Application extends React.Component {
     plot_lines: PlotLineModel.Collection,
     show_relays: false,
     show_boots: false,
-    chartSelectedPeriod: 24*60*60*1000,
+    chartSelectedPeriod: 24 * 60 * 60 * 1000,
     chartSelectionRightSide: 0,
     localData: FileLogRawLine.Collection,
     chart_options: {
@@ -371,7 +371,7 @@ class Application extends React.Component {
       setExtremes: p => this.onSetExtremes(p),
     }
     this.state.chart_options.chart.events = {
-      selection: e=>this.onChartSelection(e)
+      selection: e => this.onChartSelection(e)
     }
   }
 
@@ -567,7 +567,12 @@ class Application extends React.Component {
   };
 
   resetPlotLines() {
-    const lines = this.state.plot_lines.map(line => {
+    const lines = [];
+    const bands = [];
+    let band = null;
+
+
+    this.state.plot_lines.each(line => {
       const {type, value} = line,
         obj = {value: value, width: 1, color: 'red', label: {text: type}};
 
@@ -579,6 +584,7 @@ class Application extends React.Component {
         obj.label.text = '';
         obj.color = 'rgba(0,0,0,.15)';
         obj.width = 7;
+        lines.push(obj);
         break;
       case 'off':
         obj.color = 'blue';
@@ -586,13 +592,14 @@ class Application extends React.Component {
         if (!this.state.show_relays) {
           return null;
         }
+        lines.push(obj);
         break;
       }
 
       return obj;
     });
 
-    this.chart.xAxis[0].update({plotLines: _.compact(lines)})
+    this.chart.xAxis[0].update({plotLines: _.compact(lines), plotBands: _.compact(bands)})
   }
 
   addPlotLine(line) {
@@ -622,7 +629,7 @@ class Application extends React.Component {
   }
 
   getLatestChartTime() {
-    return this.chart.series[0].data.length ?  (this.chart.series[0].data[this.chart.series[0].data.length - 1]).x : Date.now();
+    return this.chart.series[0].data.length ? (this.chart.series[0].data[this.chart.series[0].data.length - 1]).x : Date.now();
   }
 
   setZoom(time) {
@@ -709,7 +716,7 @@ class Application extends React.Component {
     localStorage.setItem('data', JSON.stringify(localData.toJSON()));
   }
 
-  fillChartSeriaWithData(seriaIndex){
+  fillChartSeriaWithData(seriaIndex) {
     const seria = this.state.series.at(seriaIndex);
 
     if (!this.chart.series[seriaIndex]) {
@@ -817,8 +824,8 @@ class Application extends React.Component {
               [60 * 24 * 30 * 3, '90d'],
               [0, 'All']],
             ([min, name]) =>
-              <span onClick={() => this.setZoom(min*60*1000)}
-                    className={cx('z_option', {option_sel: chartSelectedPeriod === min*60*1000})}
+              <span onClick={() => this.setZoom(min * 60 * 1000)}
+                    className={cx('z_option', {option_sel: chartSelectedPeriod === min * 60 * 1000})}
                     key={min}
               >{name}</span>)
           }
@@ -845,32 +852,37 @@ class Application extends React.Component {
                 isPureConfig={true}
                 height={600}
               />
-              <Button onClick={() => this.onChartZoomOut()} label="Zoom out" size="sm" valiean="outline-info" id="zoom-out-button"/>
+              <Button onClick={() => this.onChartZoomOut()} label="Zoom out" size="sm" valiean="outline-info"
+                      id="zoom-out-button"/>
             </div>
           </Row>
           <Row>
-            <Col lg='3'>
-              <h3>{connection ? cur.avg : '---'}&deg;C</h3>
-              <h4 className={cx('relay', {on: cur.rel})}>Обогрев {cur.rel ? 'включен' :
-                'выключен'}</h4>
-              {cur.s.map((t, i) => {
-                const s = sensors.at(i);
-                return <li key={i}>{(s && s.name) + ' ' + (t / 10)}&deg;</li>
-              })}
+            <Col lg='3'>{
+              connection ? <><h3>{cur.avg}&deg;C</h3>
+                <h4 className={cx('relay', {on: cur.rel})}>Обогрев {cur.rel ? 'включен' :
+                  'выключен'}</h4>
+                {cur.s.map((t, i) => {
+                  const s = sensors.at(i);
+                  return <li key={i}>{(s && s.name) + ' ' + (t / 10)}&deg;</li>
+                })}</> : null
+            }
             </Col>
             <Col lg='6'/>
-            <Col lg='3'>
-              <div className='square-form'>
-                <DonutChart sectors={[{value: percentOn, color: 'red'},
-                  {value: 100 - percentOn, color: 'silver'}]}
-                />
-                <div className='percent-text'>
-                  {stat.duration ? percentOn : '--'}%
+            <Col lg='3'>{
+              stat.duration ? <>
+                <div className='square-form'>
+                  <DonutChart sectors={[{value: percentOn, color: 'red'},
+                    {value: 100 - percentOn, color: 'silver'}]}
+                  />
+                  <div className='percent-text'>
+                    {stat.duration ? percentOn : '--'}%
+                  </div>
                 </div>
-              </div>
-              В течение этих {myHumanizer(stat.duration)}
-              {stat.time_on > 0 ? <span> обогревало {myHumanizer(stat.time_on)}
-                                 </span> : ' не включалось'}
+                В течение этих {myHumanizer(stat.duration)}
+                {stat.time_on > 0 ? <span> обогревало {myHumanizer(stat.time_on)}
+              </span> : ' не включалось'}
+              </> : null
+            }
             </Col>
           </Row>
         </Tab>
