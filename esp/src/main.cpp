@@ -157,6 +157,14 @@ void stampToString(time_t stamp, char *buffer)
 }
 */
 
+void serial_print(String msg) {
+  Serial.print(msg);
+};
+
+void serial_println(String msg) {
+  Serial.println(msg);
+};
+
 void pwmLedManager2()
 {
   if (!led_profiles[led_current_profile][led_profile_phase])
@@ -166,7 +174,7 @@ void pwmLedManager2()
   {
     led_sin_ticker.once(led_profiles[led_current_profile][led_profile_phase] / 10.0, pwmLedManager2);
 
-    //Serial.print('.');
+    //serial_print('.');
     led_status = !led_status;
     led_profile_phase++;
   }
@@ -204,12 +212,12 @@ void writeToFile(String *line)
   String filename;
 
   //if (!line->length()) return;
-  //Serial.println("writeToFile");
+  //serial_println("writeToFile");
 
   genFilename(&filename);
 
- // Serial.print("File opened to append:");
-  //Serial.println(filename);
+ // serial_print("File opened to append:");
+  //serial_println(filename);
 
   file = SPIFFS.open(filename, "a");
 
@@ -230,13 +238,13 @@ void time_sync_cb()
 {
   gettimeofday(&tv, NULL);
 
-  Serial.println("--Time sync event--");
+  serial_println("--Time sync event--");
   if (start == 0)
   {
- //   Serial.print("Start time is set == ");
+ //   serial_print("Start time is set == ");
     now_is = time(nullptr);
     start = now_is;
- //   Serial.println(start);
+ //   serial_println(start);
     _flush_log();
   }
 
@@ -244,8 +252,8 @@ void time_sync_cb()
     int delta = ceil(now_is/3600.0)*3600 - now_is;
 
     if (delta > 30) {
-      Serial.print("Align to hour required after(sec): ");
-      Serial.println(delta);
+      serial_print("Align to hour required after(sec): ");
+      serial_println(delta);
 
      timers_aligner.once(delta, [](void){ setTimers(); });
      timers_hour_aligned = true;
@@ -265,10 +273,10 @@ void _flush_log()
 {
   String all = "";
 
-//Serial.print("Flush log events(");
-//Serial.print(data_log_pointer);
+//serial_print("Flush log events(");
+//serial_print(data_log_pointer);
 
-//Serial.print("): ");
+//serial_print("): ");
 
   if (start==0 || data_log_pointer==0) {   // мы пишем лог только если знаем настоящее время.
     return;
@@ -306,7 +314,7 @@ void _flush_log()
 
     all += line;
 
-    Serial.print(line);
+    serial_print(line);
   }
 
   writeToFile(&all);
@@ -319,8 +327,8 @@ void setRelay(bool set) {
 
   digitalWrite(RELAY_PIN, relay_on ? HIGH : LOW);
 
-  Serial.print("Relay is ");
-  Serial.println(relay_on ? "ON" : "OFF");
+  serial_print("Relay is ");
+  serial_println(relay_on ? "ON" : "OFF");
 
   relay_switched_at = now_is;
 
@@ -340,8 +348,8 @@ void _scan_sensors() {
   now_is = time(nullptr);
 
   //  stampToString(now_is - start, string20);
-  //  Serial.print(string20);
-  //  Serial.print("  ");
+  //  serial_print(string20);
+  //  serial_print("  ");
 
   setCurrentEvent('t');
 
@@ -363,7 +371,7 @@ void _scan_sensors() {
 
   digitalWrite(PIN_LED, HIGH);
 
-  Serial.println(average);
+  serial_println(average);
 
   if (average < -100 || // average -127 mean sensors problems so we better to switch off
       (average >= conf.th && relay_on && now_is - relay_switched_at >= (int)conf.ton * 60))
@@ -382,7 +390,7 @@ void _scan_sensors() {
 
 void setTimers()
 {
-  Serial.println("Set timers");
+  serial_println("Set timers");
 
   tickers[0].attach(conf.read, _scan_sensors);
   tickers[1].attach(conf.log, _log_data);
@@ -428,7 +436,7 @@ void sensorsBufferToFile(byte *buffer)
   File file = SPIFFS.open(SENSORS_FILE, "w"); // Open it
   file.write(buffer, sensors_count * 9);
   file.close(); // Then close the file again
-                //Serial.print("Sensor data saved to file");
+                //serial_print("Sensor data saved to file");
 }
 
 void sensorsBufferFromFile(byte *buffer)
@@ -439,7 +447,7 @@ void sensorsBufferFromFile(byte *buffer)
     File file = SPIFFS.open(SENSORS_FILE, "r"); // Open it
     file.readBytes((char *)buffer, sensors_count * 9);
     file.close(); // Then close the file again
-                  //                if (bytes < sensors_count*9         )         Serial.println("--SERIOUS: sensor data read less than expected--");    else       Serial.print("Sensor data is read from file");
+                  //                if (bytes < sensors_count*9         )         serial_println("--SERIOUS: sensor data read less than expected--");    else       serial_print("Sensor data is read from file");
   }
 }
 
@@ -479,7 +487,7 @@ size_t server_sendfile(String fn)
                + "\r\nConnection: close\r\n\r\n";
 
     server.client().write(S.c_str(), S.length());
-  //  Serial.println("\nSend file " + fn + " size=" + String(siz));
+  //  serial_println("\nSend file " + fn + " size=" + String(siz));
     while (siz > 0)
     {
       size_t len = std::min((int)(sizeof(buf) - 1), siz);
@@ -490,13 +498,13 @@ size_t server_sendfile(String fn)
     }
     server.client().write("]", 1); // finnaly we have correct JSON output!
     f.close();
-  //  Serial.println(String(sent) + "b sent");
+  //  serial_println(String(sent) + "b sent");
     return (sent);
   }
   else
   {
     server.send(404, strContentType, "FileNotFound");
-    Serial.println("Bad open file " + fn);
+    serial_println("Bad open file " + fn);
   }
   return (0);
 }
@@ -505,8 +513,8 @@ void parseConfJson(String *json)
 {
   DeserializationError err = deserializeJson(doc, *json);
 
-  Serial.print("Conf parse ");
-  Serial.println(err.c_str());
+  serial_print("Conf parse ");
+  serial_println(err.c_str());
 
   if (!err)
   {
@@ -642,8 +650,8 @@ void handleConfig()
     file.println(server.arg("set"));
     file.close(); // Then close the file again
 
-    Serial.print("Conf<--");
-    Serial.print(server.arg("set"));
+    serial_print("Conf<--");
+    serial_print(server.arg("set"));
 
     setTimers();
     _log_data();// TODO - added this line to log as soon as possible after board restart. If not, first log record can be found after 'conf.log' from restart (and this period is about few hours, which is not nice is final graph)
@@ -658,8 +666,8 @@ void handleConfig()
     sensorsBufferToFile(sens_buff);
     sensorsApplyBufferOn(sens_buff);
 
-    Serial.print("SensConf<--");
-    Serial.println(line);
+    serial_print("SensConf<--");
+    serial_println(line);
   }
 
   handleInfo();
@@ -690,17 +698,17 @@ void configFromFile()
     int fsize = 0;
     String json;
     File file = SPIFFS.open(CONFIG_FILE, "r"); // Open it
-                                               //    Serial.println("Config file opened. Size=");
+                                               //    serial_println("Config file opened. Size=");
     fsize = file.size();
-    //    Serial.println(fsize);
+    //    serial_println(fsize);
     if (fsize > 20 && fsize < 150)
     {
       json = file.readString();
-      //      Serial.println("Config file content:");
-      //      Serial.println(json);
+      //      serial_println("Config file content:");
+      //      serial_println(json);
       parseConfJson(&json);
-      Serial.print("Conf <-- ");
-      Serial.println(json);
+      serial_print("Conf <-- ");
+      serial_println(json);
     }
     file.close(); // Then close the file again
   }
@@ -710,7 +718,7 @@ void is_wifi_connected(){
 
      if (WiFi.status() != WL_CONNECTED)
   {
-//    Serial.println("No wifi located - set time for next period");
+//    serial_println("No wifi located - set time for next period");
     timers_aligner.once(60*15, is_wifi_connected );
       } else {
     settimeofday_cb(time_sync_cb);
@@ -722,8 +730,8 @@ void is_wifi_connected(){
 
     server.begin();
 
-    Serial.print("IP is ");
-    Serial.println(WiFi.localIP());
+    serial_print("IP is ");
+    serial_println(WiFi.localIP());
   }
 }
 
@@ -735,7 +743,7 @@ void WiFi_setup()
   setLedProfile(LED_WIFI);
 
   WiFi.mode(WIFI_STA);
-  Serial.println("Waiting wifi");
+  serial_println("Waiting wifi");
 
   if (WiFi.SSID() != "")
     wifiManager.setConfigPortalTimeout(60); //If no access point name has been previously entered disable timeout.
@@ -759,7 +767,7 @@ void setup()
   pinMode(RELAY_PIN, OUTPUT);
 
   Serial.begin(115200);
-  Serial.println("\n Starting");
+  serial_println("\n Starting");
   setCurrentEvent('b');
   _log_data();
 
