@@ -5,13 +5,15 @@ import * as dayjs from 'dayjs'
 import * as ExcelJS from 'exceljs'
 import * as duration from 'dayjs/plugin/duration'
 import * as utc from 'dayjs/plugin/utc'
+import * as customParseFormat from 'dayjs/plugin/customParseFormat'
 import DonutChart from './DonutChart'
 import {Container, Row, Col, Form, Button, Tabs, Tab} from './Bootstrap'
 import * as ReactHighcharts from 'react-highcharts'
 import './app.scss'
 
-dayjs.extend(utc)
-dayjs.extend(duration)
+dayjs.extend(customParseFormat);
+dayjs.extend(utc);
+dayjs.extend(duration);
 
 let server_ip = localStorage.getItem('ip') || '192.168.0.0';
 
@@ -45,7 +47,7 @@ const Loader = ({label, inline, absolute, className}) =>
     </div>
   </div>;
 
-const realFetch = url => fetch(url, {mode: 'cors'}).then(res => {
+const realFetch = url => fetch( url).then(res => {
   return res.text()
 });
 /*const mockFetch = url => {
@@ -84,7 +86,7 @@ const ESPfetch = (url, fixData) => realFetch(url)
 
     try {
       if (fixData) {
-        const regexp = /(\[\d+,("\w+"|(-?\d+,?){1,})\])/g;
+        const regexp = /(\[\d+((,-?\d+,?){0,}),"\w+"\])/g;
         const result = regexp[Symbol.matchAll](text);
         const array = Array.from(result, x => x[0]);
 
@@ -127,6 +129,20 @@ const downloadFile = (buffer, type, fileName) => {
     });
 }
 
+const transformPackedToStamp = packedDate => {
+  let res = dayjs(packedDate + '', "YYMMDDHHmm", true);
+  res = res.toDate();
+  res = res.getTime() / 1000;
+
+  return res;
+}
+
+const transformStampToPacked = stamp => {
+  let res = dayjs(stamp).format("YYMMDDHHmm");
+
+  return res;
+}
+
 @define
 class ConfigModel extends Record {
   static attributes = {
@@ -162,7 +178,10 @@ class CurInfoModel extends Record {
       params.f = 1;
     }
     return ESPfetch(server_url('/info', params))
-      .then(json => this.set(json))
+      .then(json =>{
+        json.last = transformPackedToStamp(json.last);
+        this.set(json);
+      })
   }
 }
 
@@ -245,17 +264,28 @@ class FileLogRawLine extends Record {
 
   static attributes = {
     stamp: 0,
-    arr: []
+    arr: [],
+    event:'',
   };
 
   parse(data) {
-    const stamp = data.shift();
+    const packedDate = data.shift();
+    let event = data.pop();
 
-    return {stamp, arr: data};
+    if (_.isNumber(event)) {
+      data.push( event );
+      event = 't';
+    }
+
+    return {
+      stamp: transformPackedToStamp(packedDate),
+      arr: data,
+      event
+    };
   }
 
   toJSON() {
-    return [this.stamp, ...this.arr];
+    return [transformStampToPacked(this.stamp), ...this.arr, this.event];
   }
 
   static collection = {
@@ -571,7 +601,6 @@ class Application extends React.Component {
     const bands = [];
     let band = null;
 
-
     this.state.plot_lines.each(line => {
       const {type, value} = line,
         obj = {value: value, width: 1, color: 'red', label: {text: type}};
@@ -690,16 +719,16 @@ class Application extends React.Component {
     plot_lines.reset();
 
     localData.each(line => {
-      const {stamp, arr} = line;
+      const {stamp, arr, event} = line;
 
-      if (_.isNumber(arr[0])) {
+      if (arr && arr.length) {
         for (let i = 0; i < sns_count; i++) {
           if (arr[i] > -1000) {
             series[i].data.add({stamp, temp: arr[i]}, {silent: true});
           }
         }
       } else {
-        plot_lines.add({value: stamp * 1000, type: arr[0]}, {silent: true});
+        plot_lines.add({value: stamp * 1000, type: event}, {silent: true});
       }
     });
 
