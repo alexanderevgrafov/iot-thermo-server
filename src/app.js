@@ -15,6 +15,8 @@ dayjs.extend(customParseFormat);
 dayjs.extend(utc);
 dayjs.extend(duration);
 
+const PLOT_BAND_COLOR = '#ff000015';
+
 let server_ip = localStorage.getItem('ip') || '192.168.0.0';
 
 const myHumanizer = dur => dayjs.duration(dur)
@@ -38,16 +40,16 @@ const server_url = (path, params) => {
 
 const Loader = ({label, inline, absolute, className}) =>
   <div className={cx('loader', {loaderInline: inline, loaderAbsolute: absolute}, className)}>
-    <div className='loaderBody'>
+    <div className="loaderBody">
       <img
-        alt='Loader'
-        className='loaderImg'
-        src='./loader.svg'/>
+        alt="Loader"
+        className="loaderImg"
+        src="./loader.svg"/>
       <div>{label}</div>
     </div>
   </div>;
 
-const realFetch = url => fetch( url).then(res => {
+const realFetch = url => fetch(url).then(res => {
   return res.text()
 });
 /*const mockFetch = url => {
@@ -84,25 +86,25 @@ const ESPfetch = (url, fixData) => realFetch(url)
     let json;
     let cleanSet;
 
-    try {
-      if (fixData) {
-        const regexp = /(\[\d+((,-?\d+,?){0,}),"\w+"\])/g;
-        const result = regexp[Symbol.matchAll](text);
-        const array = Array.from(result, x => x[0]);
+      try {
+        if (fixData) {
+          const regexp = /(\[\d+(,-?\d+){0,}(,"\w+")?\])/g;
+          const result = regexp[Symbol.matchAll](text);
+          const array = Array.from(result, x => x[0]);
 
-        cleanSet = '[' + array.join(',') + ']';
-      } else {
-        cleanSet = text.replace(/,\s{0,}([,\]])/, '$1');
+          cleanSet = '[' + array.join(',') + ']';
+        } else {
+          cleanSet = text.replace(/,\s{0,}([,\]])/, '$1');
+        }
+
+        json = JSON.parse(cleanSet);
+      } catch (e) {
+        console.log('JSON parse failed, no matter of try to fix');
+        json = [];
       }
 
-      json = JSON.parse(cleanSet);
-    } catch (e) {
-      console.log('JSON parse failed, no matter of try to fix');
-      json = [];
-    }
-
-    return json;
-  })
+      return json;
+    })
 //  .catch(e => console.error(e.message || e));
 
 const downloadFile = (buffer, type, fileName) => {
@@ -130,7 +132,7 @@ const downloadFile = (buffer, type, fileName) => {
 }
 
 const transformPackedToStamp = packedDate => {
-  let res = dayjs(packedDate + '', "YYMMDDHHmm", true);
+  let res = dayjs.utc(packedDate + '', 'YYMMDDHHmm', true);
   res = res.toDate();
   res = res.getTime() / 1000;
 
@@ -138,9 +140,7 @@ const transformPackedToStamp = packedDate => {
 }
 
 const transformStampToPacked = stamp => {
-  let res = dayjs(stamp).format("YYMMDDHHmm");
-
-  return res;
+  return dayjs.utc(stamp * 1000).format('YYMMDDHHmm');
 }
 
 @define
@@ -165,7 +165,7 @@ class ConfigModel extends Record {
 @define
 class CurInfoModel extends Record {
   static attributes = {
-    last: Date,
+    last: 0,
     rel: type(Boolean).value(null),
     up: 0,
     s: [],
@@ -174,11 +174,12 @@ class CurInfoModel extends Record {
 
   load(options) {
     const params = {cur: 1};
+
     if (options.force) {
       params.f = 1;
     }
     return ESPfetch(server_url('/info', params))
-      .then(json =>{
+      .then(json => {
         json.last = transformPackedToStamp(json.last);
         this.set(json);
       })
@@ -265,7 +266,7 @@ class FileLogRawLine extends Record {
   static attributes = {
     stamp: 0,
     arr: [],
-    event:'',
+    event: '',
   };
 
   parse(data) {
@@ -273,12 +274,12 @@ class FileLogRawLine extends Record {
     let event = data.pop();
 
     if (_.isNumber(event)) {
-      data.push( event );
+      data.push(event);
       event = 't';
     }
 
     return {
-      stamp: transformPackedToStamp(packedDate),
+      stamp: packedDate > 2000000000 ? transformPackedToStamp(packedDate) : packedDate,
       arr: data,
       event
     };
@@ -368,8 +369,6 @@ class Application extends React.Component {
     fs: FileSystem,
     files: FileModel.Collection,
     connection: false,
-    series: LineModel.Collection,
-    plot_lines: PlotLineModel.Collection,
     show_relays: false,
     show_boots: false,
     chartSelectedPeriod: 24 * 60 * 60 * 1000,
@@ -384,6 +383,9 @@ class Application extends React.Component {
       },
       xAxis: {
         type: 'datetime',
+      },
+      time: {
+        timezoneOffset: (new Date).getTimezoneOffset(),
       },
       series: [],
     },
@@ -428,18 +430,27 @@ class Application extends React.Component {
     if (params.min && params.max) {
       this.calcStats(params.min, params.max)
     } else {
-      this.calcStats(this.state.series.at(0).data.at(0).stamp * 1000,
-        this.chart.series[0].data[this.chart.series[0].data.length - 1].x);
+      this.calcStats(
+        this.chart.series[0].data[0].x,
+        this.chart.series[0].data[this.chart.series[0].data.length - 1].x
+      );
     }
   }
 
   calcStats(start, finish) {
-    const {plot_lines, stat} = this.state;
-    let turned = null;
+    const {stat} = this.state;
     let sum = 0;
 
-    for (let i = 0; i < plot_lines.length; i++) {
-      const p = plot_lines.at(i);
+    // We use plotBands as stats datasource because they are already mostly processed right way
+    const bands = this.chart.xAxis[0].plotLinesAndBands || [];
+
+    for (let i = 0; i < bands.length; i++) {
+      const band = bands[i];
+      const {from, to} = band.options;
+
+      if (!from) {
+        continue;
+      }
 
       if (p.value > finish) {
         if (turned) {
@@ -448,28 +459,9 @@ class Application extends React.Component {
         break;
       }
 
-      if (p.type === 'on') {
-        turned = p.value;
-      } else {
-        if (turned && p.value > start) {
-          sum += p.value - Math.max(turned, start);
-        }
-        turned = null;
+      if (to > start) {
+        sum += Math.min(to, finish) - Math.max(from, start);
       }
-      /*  if (p.value > start) {
-          switch (p.type) {
-          case 'on':
-            turned = p.value;
-            break;
-          case 'off':
-          case 'st':
-            if (turned) {
-              sum += p.value - turned;
-              turned = null;
-            }
-            break;
-          }
-        }*/
     }
 
     stat.start = start;
@@ -480,8 +472,9 @@ class Application extends React.Component {
   parseState(json) {
     const sensors =
       json.sn.split(',').map(s => {
-        const addr = s.split(' '),
-          weight = addr.pop();
+        const addr = s.split(' ');
+        const weight = addr.pop();
+
         return {addr, weight}
       });
 
@@ -511,18 +504,16 @@ class Application extends React.Component {
   }
 
   getCurInfo(force) {
-    const {cur: cur0} = this.state,
-      {rel} = cur0;
+    const {cur: cur0} = this.state;
+    const {rel: prevRelay} = cur0;
 
     cur0.load({force})
       .then(() => {
         const {cur} = this.state;
+        const isRelayChanged = cur.rel !== prevRelay && prevRelay !== null;
 
         this.state.connection = true;
-        this.addPoints();
-        if (cur.rel !== rel && rel !== null) {
-          this.addPlotLine({value: cur.last * 1000, width: 1, color: cur.rel ? 'red' : 'blue'})
-        }
+        this.appendLatestToGraph(isRelayChanged);
       })
       .catch(err => {
         console.error(err);
@@ -530,13 +521,68 @@ class Application extends React.Component {
       })
   }
 
+  appendLatestToGraph(isRelayChanged) {
+    const {sensors, cur} = this.state;
+    const now = Math.floor(Date.now() / 1000) * 1000;
+    const lastMeasure = cur.last * 1000;
+
+    for (let i = 0; i < sensors.length; i++) {
+      const ser = this.chart.series[i];
+
+      if (!ser || !ser.data.length) {
+        this.addSplineOnChart(i);
+      }
+
+      // ToDo: handle adding plot-bands situation + added variable seems to be absolete
+      this.chart.series[i].addPoint([now, cur.s[i] / 10], false);
+    }
+
+    if (cur.rel) {
+      if (isRelayChanged) { // Append new plot band
+        this.chart.xAxis[0].addPlotBand({from: lastMeasure, to: now, color: PLOT_BAND_COLOR})
+      } else {
+        const band = this.getLatestBand();
+        if (band) {
+          band.options.to = now;
+        }
+      }
+    } else {
+      if (isRelayChanged) {
+        const band = this.getLatestBand();
+
+        if (band) {
+          band.options.to = lastMeasure;
+        }
+      }
+    }
+
+    //this.addPlotLine({value: lastMeasure, width: 1, color: cur.rel ? 'red' : 'blue'})
+
+    this.chart.redraw();
+
+    this.state.chartSelectedPeriod && this.onSetZoom(now);
+  }
+
+  getLatestBand() {
+    const bands = this.chart.xAxis[0].plotLinesAndBands;
+
+    for (let i = bands.length - 1; i >= 0; i--) {
+      if (!bands[i].options.to) {
+        continue;
+      }
+      return bands[i];
+    }
+
+    return null;
+  }
+
   stopTimer = () => {
     clearInterval(this.timer);
   };
 
   setTimer = () => {
-    const {conf} = this.state,
-      handler = () => this.getCurInfo();
+    const {conf} = this.state;
+    const handler = () => this.getCurInfo();
 
     this.stopTimer();
 
@@ -581,7 +627,10 @@ class Application extends React.Component {
 
     if (chunk) {
       chunk.load().then(data => {
-        this.state.localData.add(data, {parse: true})
+
+        this.state.localData.add(_.map(data, item => {
+          return new FileLogRawLine(item, {parse: true});
+        }));
 
         const index = this.state.files.indexOf(chunk);
 
@@ -596,65 +645,8 @@ class Application extends React.Component {
     }
   };
 
-  resetPlotLines() {
-    const lines = [];
-    const bands = [];
-    let band = null;
-
-    this.state.plot_lines.each(line => {
-      const {type, value} = line,
-        obj = {value: value, width: 1, color: 'red', label: {text: type}};
-
-      switch (type) {
-      case 'st':
-        if (!this.state.show_boots) {
-          return null;
-        }
-        obj.label.text = '';
-        obj.color = 'rgba(0,0,0,.15)';
-        obj.width = 7;
-        lines.push(obj);
-        break;
-      case 'off':
-        obj.color = 'blue';
-      case 'on':
-        if (!this.state.show_relays) {
-          return null;
-        }
-        lines.push(obj);
-        break;
-      }
-
-      return obj;
-    });
-
-    this.chart.xAxis[0].update({plotLines: _.compact(lines), plotBands: _.compact(bands)})
-  }
-
   addPlotLine(line) {
     this.chart.xAxis[0].addPlotLine(line);
-  }
-
-  addPoints() {
-    const {sensors, cur} = this.state,
-      sns_count = sensors.length,
-      lst = cur.last * 1000,
-      now = Date.now() - (new Date).getTimezoneOffset() * 60 * 1000;
-    let added = 0;
-
-    for (let i = 0; i < sns_count; i++) {
-      const ser = this.chart.series[i];
-
-      if (!ser || !ser.data.length) {
-        this.fillChartSeriaWithData(i);
-      }
-      this.chart.series[i].addPoint([lst, cur.s[i] / 10], false);
-      added++;
-    }
-
-    added && this.chart.redraw();
-
-    added && this.state.chartSelectedPeriod && this.onSetZoom(now);
   }
 
   getLatestChartTime() {
@@ -708,32 +700,32 @@ class Application extends React.Component {
   }
 
   chartFillWithData() {
-    const {sensors, localData, plot_lines} = this.state;
+    const {sensors, localData} = this.state;
     const sns_count = sensors.length;
     const series = [];
 
     for (let i = 0; i < sns_count; i++) { // cache the series refs
-      series[i] = this.state.series.at(i) || this.state.series.add({})[0];
-      series[i].data.reset();
+      series[i] = [];
     }
-    plot_lines.reset();
 
     localData.each(line => {
-      const {stamp, arr, event} = line;
+      const {stamp, arr} = line;
 
       if (arr && arr.length) {
         for (let i = 0; i < sns_count; i++) {
           if (arr[i] > -1000) {
-            series[i].data.add({stamp, temp: arr[i]}, {silent: true});
+            series[i].push([stamp * 1000, arr[i] / 10]);
           }
         }
-      } else {
-        plot_lines.add({value: stamp * 1000, type: event}, {silent: true});
       }
-    });
+    })
 
     for (let i = 0; i < sns_count; i++) {
-      this.fillChartSeriaWithData(i);
+      if (!this.chart.series[i]) {
+        this.addSplineOnChart(i)
+      }
+
+      this.chart.series[i].setData(series[i], false);
     }
 
     this.resetPlotLines();
@@ -745,14 +737,55 @@ class Application extends React.Component {
     localStorage.setItem('data', JSON.stringify(localData.toJSON()));
   }
 
-  fillChartSeriaWithData(seriaIndex) {
-    const seria = this.state.series.at(seriaIndex);
+  resetPlotLines() {
+    const lines = [];
+    const bands = [];
+    let latestStamp;
+    let bandStart = null;
 
-    if (!this.chart.series[seriaIndex]) {
-      this.chart.addSeries({type: 'spline', name: this.state.sensors.at(seriaIndex).name});
+    this.state.localData.each(line => {
+      const {stamp, event} = line;
+      const value = stamp * 1000;
+
+      switch (event) {
+      case 'st':
+        if (this.state.show_boots) {
+          lines.push({value, width: 1, color: 'rgba(0,0,0,.25)'});
+        }
+
+        if (bandStart && this.state.show_relays) {
+          bands.push({from: bandStart, color: '#ff000015', to: latestStamp});
+          bandStart = null;
+        }
+        break;
+      case 'off':
+        if (bandStart && this.state.show_relays) {
+          bands.push({from: bandStart, color: PLOT_BAND_COLOR, to: value});
+          bandStart = null;
+        }
+
+        //     lines.push({value, width:1, color: 'blue'});
+        break;
+      case 'on':
+        if (this.state.show_relays) {
+          bandStart = value;
+        }
+
+        //     lines.push({value, width:1, color: 'red'});
+        break;
+      }
+      latestStamp = value;
+    });
+
+    if (bandStart) {
+      bands.push({from: bandStart, color: PLOT_BAND_COLOR, to: latestStamp});
     }
 
-    this.chart.series[seriaIndex].setData(seria.data.toJSON(), false);
+    this.chart.xAxis[0].update({plotLines: _.compact(lines), plotBands: _.compact(bands)})
+  }
+
+  addSplineOnChart(i) {
+    this.chart.addSeries({type: 'spline', name: this.state.sensors.at(i).name});
   }
 
   afterRender = chart => {
@@ -837,8 +870,8 @@ class Application extends React.Component {
       {
         loading ? <Loader/> : void 0
       }
-      <div className='top-right'>
-        <div className='chart_options'>
+      <div className="top-right">
+        <div className="chart_options">
                     <span onClick={() => this.state.show_boots = !show_boots}
                           className={cx('z_option red', {option_sel: show_boots})}>перезагрузки</span>
           <span onClick={() => this.state.show_relays = !show_relays}
@@ -859,22 +892,22 @@ class Application extends React.Component {
               >{name}</span>)
           }
         </div>
-        <div className='up_time'>{
+        <div className="up_time">{
           connection ? 'Аптайм ' + myHumanizer(cur.up * 1000) : 'Нет связи с платой'
         }</div>
         <Button onClick={() => this.getCurInfo(true)}
-                variant='outline-primary'>Load now</Button>
+                variant="outline-primary">Load now</Button>
       </div>
-      <Tabs defaultActiveKey='chart'
+      <Tabs defaultActiveKey="chart"
             onSelect={key => {
               key === 'chart' && setTimeout(() => {
                 this.chart.setSize(null, null, false)
               }, 1000)
             }}
       >
-        <Tab eventKey='chart' title='Данные'>
+        <Tab eventKey="chart" title="Данные">
           <Row>
-            <div id="chart-container" ref='chartbox'>
+            <div id="chart-container" ref="chartbox">
               <ReactHighcharts
                 config={chart_options}
                 callback={this.afterRender}
@@ -886,7 +919,7 @@ class Application extends React.Component {
             </div>
           </Row>
           <Row>
-            <Col lg='3'>{
+            <Col lg="3">{
               connection ? <><h3>{cur.avg}&deg;C</h3>
                 <h4 className={cx('relay', {on: cur.rel})}>Обогрев {cur.rel ? 'включен' :
                   'выключен'}</h4>
@@ -896,14 +929,14 @@ class Application extends React.Component {
                 })}</> : null
             }
             </Col>
-            <Col lg='6'/>
-            <Col lg='3'>{
+            <Col lg="6"/>
+            <Col lg="3">{
               stat.duration ? <>
-                <div className='square-form'>
+                <div className="square-form">
                   <DonutChart sectors={[{value: percentOn, color: 'red'},
                     {value: 100 - percentOn, color: 'silver'}]}
                   />
-                  <div className='percent-text'>
+                  <div className="percent-text">
                     {stat.duration ? percentOn : '--'}%
                   </div>
                 </div>
@@ -915,42 +948,42 @@ class Application extends React.Component {
             </Col>
           </Row>
         </Tab>
-        <Tab eventKey='config' title='Конфигурация'>
+        <Tab eventKey="config" title="Конфигурация">
           <Row>
             <Col>
-              <Form.Row label='ESP IP'>
+              <Form.Row label="ESP IP">
                 <Form.ControlLinked valueLink={Link.value(server_ip, x => {
                   onServerIPchange(x);
                   this.asyncUpdate()
                 })}/>
               </Form.Row>
               <Form.Row>
-                <Button onClick={() => this.getFullState()} variant='outline-info'>Get From ESP</Button>
+                <Button onClick={() => this.getFullState()} variant="outline-info">Get From ESP</Button>
               </Form.Row>
-              <Form.Row label='T low'>
+              <Form.Row label="T low">
                 <Form.ControlLinked valueLink={conf.linkAt('tl')}/>
               </Form.Row>
-              <Form.Row label='T high'>
+              <Form.Row label="T high">
                 <Form.ControlLinked valueLink={conf.linkAt('th')}/>
               </Form.Row>
-              <Form.Row label='ON min'>
+              <Form.Row label="ON min">
                 <Form.ControlLinked valueLink={conf.linkAt('ton')}/>
               </Form.Row>
-              <Form.Row label='OFF min'>
+              <Form.Row label="OFF min">
                 <Form.ControlLinked valueLink={conf.linkAt('toff')}/>
               </Form.Row>
-              <Form.Row label='Read each'>
+              <Form.Row label="Read each">
                 <Form.ControlLinked valueLink={conf.linkAt('read')}/>
               </Form.Row>
-              <Form.Row label='Log each'>
+              <Form.Row label="Log each">
                 <Form.ControlLinked valueLink={conf.linkAt('log')}/>
               </Form.Row>
-              <Form.Row label='Flush log each'>
+              <Form.Row label="Flush log each">
                 <Form.ControlLinked valueLink={conf.linkAt('flush')}/>
               </Form.Row>
               <Form.Row>
                 <Button onClick={() => conf.save()
-                  .then(json => this.parseState(json))} variant='outline-info'>Update config</Button>
+                  .then(json => this.parseState(json))} variant="outline-info">Update config</Button>
               </Form.Row>
             </Col>
             <Col>
@@ -965,7 +998,7 @@ class Application extends React.Component {
               }
               <Form.Row>
                 <Button onClick={() => sensors.save()
-                  .then(json => this.parseState(json))} variant='outline-info'>Set balance</Button>
+                  .then(json => this.parseState(json))} variant="outline-info">Set balance</Button>
               </Form.Row>
             </Col>
             <Col>
@@ -976,7 +1009,7 @@ class Application extends React.Component {
               {
                 files.map(file => <div key={file}>
                     {file.n + ' ' + Math.round(file.s * 10 / 1024) / 10 + 'Kb'}
-                    <Button onClick={() => file.del()} variant='light' size='sm'>Delete</Button>
+                    <Button onClick={() => file.del()} variant="light" size="sm">Delete</Button>
                   </div>
                 )
               }
@@ -1013,10 +1046,10 @@ class Application extends React.Component {
               </Form.Row>
 
               <Form.Row>
-                <Button label="Clean" variant='outline-info' onClick={() => this.cleanLs()}/>
+                <Button label="Clean" variant="outline-info" onClick={() => this.cleanLs()}/>
               </Form.Row>
               <Form.Row>
-                <Button label="Export" variant='outline-info' onClick={() => this.exportFromLs()}/>
+                <Button label="Export" variant="outline-info" onClick={() => this.exportFromLs()}/>
               </Form.Row>
             </Col>
           </Row>
