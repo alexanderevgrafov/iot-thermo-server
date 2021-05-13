@@ -81,10 +81,11 @@ const realFetch = url => fetch(url).then(res => {
   return result ? Promise.resolve(result.default) : Promise.reject('Mock not found for ' + url);
 }*/
 
-const ESPfetch = (url, fixData) => realFetch(url)
-  .then(text => {
-    let json;
-    let cleanSet;
+const ESPfetch = (url, fixData) =>
+  realFetch(url)
+    .then(text => {
+      let json;
+      let cleanSet;
 
       try {
         if (fixData) {
@@ -452,10 +453,7 @@ class Application extends React.Component {
         continue;
       }
 
-      if (p.value > finish) {
-        if (turned) {
-          sum += finish - Math.max(turned, start);
-        }
+      if (from > finish) {
         break;
       }
 
@@ -650,7 +648,13 @@ class Application extends React.Component {
   }
 
   getLatestChartTime() {
-    return this.chart.series[0].data.length ? (this.chart.series[0].data[this.chart.series[0].data.length - 1]).x : Date.now();
+    if (this.chart.series[0].data.length) {
+      return this.chart.series[0].data[this.chart.series[0].data.length - 1].x;
+    }
+
+    const now = new Date();
+
+    return now.getTime() - now.getTimezoneOffset() * 60 * 1000;
   }
 
   setZoom(time) {
