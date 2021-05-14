@@ -361,6 +361,30 @@ class LsStateModel extends Record {
   }
 }
 
+const StatDonut = ({show, stat}) => {
+  if (!show || !stat.duration) {
+    return null;
+  }
+
+  const percentOn = stat.duration ? Math.round(stat.time_on * 1000 / stat.duration) / 10 : 0;
+  const heatTimeText = stat.duration ? ('В течение этих ' + myHumanizer(stat.duration) + ' ' +
+    (percentOn === 0 ? 'не включалось' :
+      ('обогревало ' +
+        (percentOn > 98 ? ((percentOn < 100 ? 'почти ' : '') + 'постоянно')
+          : myHumanizer(stat.time_on))))) : '';
+  return <>
+    <div className="square-form">
+      <DonutChart sectors={[{value: percentOn, color: 'red'},
+        {value: 100 - percentOn, color: 'silver'}]}
+      />
+      <div className="percent-text">
+        {stat.duration ? percentOn : '--'}%
+      </div>
+    </div>
+    {heatTimeText}
+  </>
+}
+
 @define
 class Application extends React.Component {
   static state = {
@@ -868,7 +892,6 @@ class Application extends React.Component {
       loading, conf, cur, sensors, fs, files, connection, chart_options,
       chartSelectedPeriod, show_relays, show_boots, stat, lsState
     } = this.state;
-    const percentOn = stat.duration ? Math.round(stat.time_on * 1000 / stat.duration) / 10 : 0;
 
     return <Container>
       {
@@ -934,21 +957,7 @@ class Application extends React.Component {
             }
             </Col>
             <Col lg="6"/>
-            <Col lg="3">{
-              stat.duration ? <>
-                <div className="square-form">
-                  <DonutChart sectors={[{value: percentOn, color: 'red'},
-                    {value: 100 - percentOn, color: 'silver'}]}
-                  />
-                  <div className="percent-text">
-                    {stat.duration ? percentOn : '--'}%
-                  </div>
-                </div>
-                В течение этих {myHumanizer(stat.duration)}
-                {stat.time_on > 0 ? <span> обогревало {myHumanizer(stat.time_on)}
-              </span> : ' не включалось'}
-              </> : null
-            }
+            <Col lg="3"><StatDonut show={show_relays} stat={stat}/>
             </Col>
           </Row>
         </Tab>
