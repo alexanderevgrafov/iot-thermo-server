@@ -50,13 +50,13 @@ $loader_sy: 150px;
   position: fixed;
   height: 100%;
   width: 100%;
-  top:0;
-  left:0;
+  top: 0;
+  left: 0;
   z-index: 10000;
   overflow: hidden;
   transition: background-color 2s;
   background-color: transparentize(#fff, .3);
-  display:flex;
+  display: flex;
   align-items: center;
   justify-content: center;
 }
@@ -66,7 +66,7 @@ $loader_sy: 150px;
   position: relative;
   width: 100%;
   z-index: 10000;
-  display:flex;
+  display: flex;
   align-items: center;
   justify-content: center;
 }
@@ -77,18 +77,18 @@ $loader_sy: 150px;
 }
 
 .loaderBody {
-  color:darkred;
+  color: darkred;
   text-align: center;
   font-weight: 500;
   font-size: 1.4rem;
 }
 
 .loaderImg {
-  display:block;
+  display: block;
   width: $loader_sx;
   height: $loader_sy;
   transform-origin: center center;
-  margin:0 auto;
+  margin: 0 auto;
 }
 
 .loaderInline .loaderImg {
@@ -97,24 +97,27 @@ $loader_sy: 150px;
 }
 
 h4.relay {
-  padding:5px;
-  border-radius:5px;
-  color:darkgreen;
+  padding: 5px;
+  border-radius: 5px;
+  color: darkgreen;
 }
 
 h4.relay.on {
-  color:white;
-  background-color:darkgreen;
+  color: white;
+  background-color: darkgreen;
   text-align: center;
 }
 
-.donut-chart{
+.donut-chart {
   position: absolute;
-  top:0;
+  top: 0;
+
   g.sector {
     pointer-events: none;
 
-    path.color { pointer-events: visible;
+    path.color {
+      pointer-events: visible;
+
       &.ghost {
         fill: gray;
       }
@@ -135,13 +138,17 @@ h4.relay.on {
 }
 
 .square-form {
-  width:100%;
-  padding-top:100%;
- // background-color:#ffdddd;
+  width: 100%;
+  padding-top: 100%;
+  // background-color:#ffdddd;
   position: relative;
+
   .percent-text {
     position: absolute;
-    top:0; left:0; right:0; bottom:0;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     display: flex;
     align-content: center;
     justify-content: center;
@@ -155,12 +162,17 @@ h4.relay.on {
 }
 
 #chart-container {
-  width:100%;
-  position:relative;
+  width: 100%;
+  position: relative;
 }
 
 #zoom-out-button {
-  position:absolute;
-  top:10px;
+  position: absolute;
+  top: 10px;
   right: 0;
+}
+
+.hint {
+  color: silver;
+  font-size: 70%;
 }
