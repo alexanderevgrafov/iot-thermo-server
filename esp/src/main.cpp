@@ -25,7 +25,7 @@
 #define FS_BLOCK_SIZE 8180
 //#define FS_BLOCK_SIZE 1020
 
-#define WIFI_CONFIG_DURATION_SEC 15
+#define WIFI_CONFIG_DURATION_SEC 240
 // #define TZ 3      // (utc+) TZ in hours
 // #define DST_MN 0  // use 60mn for summer time in some countries
 // #define TZ_MN ((TZ)*60)
@@ -36,6 +36,8 @@
 #define MAX_SENSORS_COUNT 8
 #define TEMP_BYTE_SIZE 4
 #define STAMP_BYTE_SIZE 4
+
+#define FILE_CHECK_EACH_HOURS 0
 
 #define TICKERS 3
 
@@ -119,6 +121,7 @@ struct tm *timeTmp;
 time_t nowTime;
 time_t start;
 time_t relaySwitchedAt = 0;
+time_t fileCheckedAt = 0;
 
 String currentFileName;
 long currentFileSize;
@@ -132,6 +135,17 @@ extern "C" int clock_gettime(clockid_t unused, struct timespec *tp);
 void WiFiSetup(void);
 void setTimers(void);
 void flushLogIntoFile(void);
+
+#define SERIAL_DEBUG 1
+#if SERIAL_DEBUG
+ #define SERIAL_PRINT(msg) Serial.print(msg);
+ #define SERIAL_PRINTLN(msg) Serial.println(msg);
+#else
+ #define SERIAL_PRINT(msg) ;
+ #define SERIAL_PRINTLN(msg) ;
+#endif
+
+ 
 
 /*
 void stampToString(time_t stamp, char *buffer)
@@ -161,14 +175,6 @@ void stampToString(time_t stamp, char *buffer)
 }
 */
 
-void serialPrint(String msg) {
-  Serial.print(msg);
-};
-
-void serialPrintln(String msg) {
-  Serial.println(msg);
-};
-
 void pwmLedManager2() {
   if (!led_profiles[led_current_profile][led_profile_phase])
     led_profile_phase = 0;
@@ -176,7 +182,7 @@ void pwmLedManager2() {
   if (led_profiles[led_current_profile][led_profile_phase]) {
     led_sin_ticker.once(led_profiles[led_current_profile][led_profile_phase] / 10.0, pwmLedManager2);
 
-    //serialPrint('.');
+    //SERIAL_PRINT('.');
     ledStatus = !ledStatus;
     led_profile_phase++;
   }
@@ -213,10 +219,10 @@ void genFilename(String *fileName) {
     index++;
   } while (LittleFS.exists(*fileName));
 
-  //  serialPrint("New file name generated:");
-  //  serialPrintln(*fileName);
+    SERIAL_PRINT("New file name generated:");
+    SERIAL_PRINTLN(*fileName);
 
-  //serialPrint("Accepted!!");
+  //SERIAL_PRINT("Accepted!!");
 }
 
 void setCurrentEvent(char type) {
@@ -224,15 +230,45 @@ void setCurrentEvent(char type) {
   curSensors.event = type;
 }
 
+String validFileCharacters = "0123456789-[],\"\"onfst";  // supported events are "on", "off", "st"
+
+bool checkFile(String *fileName) {
+  File file = LittleFS.open(*fileName, "r");
+  char ch;
+
+  if (!file) {
+    return false;
+  }
+
+  while (file.available()) {
+    ch = file.read();
+    if (validFileCharacters.indexOf(ch) < 0) {
+      SERIAL_PRINTLN("File check failed because of '" + String(ch) + "'");
+      return false;
+    }
+  }
+
+  SERIAL_PRINTLN("File check passed!");
+  return true;
+}
+
 void writeToFile(String *line, String *fileName) {
   File file;
 
   //if (!line->length()) return;
-  //  serialPrintln("writeToFile");
+  SERIAL_PRINTLN("writeToFile");
 
-  // serialPrint("File opened to append:");
-  //  serialPrintln(*fileName);
-  //  serialPrintln(*line);
+  // SERIAL_PRINT("File opened to append:");
+  //    SERIAL_PRINTLN(*fileName);
+  //  SERIAL_PRINTLN(*line);
+
+  if ((fileCheckedAt + FILE_CHECK_EACH_HOURS * 60 * 60) < nowTime) {
+    SERIAL_PRINTLN("File check");
+    if (!checkFile(&currentFileName)) {
+      genFilename(&currentFileName);
+    }
+    fileCheckedAt = nowTime;
+  }
 
   file = LittleFS.open(*fileName, "a");
 
@@ -245,8 +281,8 @@ void writeToFile(String *line, String *fileName) {
     file.print(*line);
 
     currentFileSize = file.size();
-    //  serialPrint("ResultingSize:");
-    //  serialPrintln(String(currentFileSize));
+    //  SERIAL_PRINT("ResultingSize:");
+    //  SERIAL_PRINTLN(String(currentFileSize));
 
     file.close();
   }
@@ -255,12 +291,12 @@ void writeToFile(String *line, String *fileName) {
 void timeSyncCb() {
   gettimeofday(&tv, NULL);
 
-  serialPrintln("--Time sync event--");
+  SERIAL_PRINTLN("--Time sync event--");
   if (start == 0) {
-    //   serialPrint("Start time is set == ");
+    //   SERIAL_PRINT("Start time is set == ");
     nowTime = time(nullptr);
     start = nowTime;
-    //   serialPrintln(start);
+    //   SERIAL_PRINTLN(start);
     flushLogIntoFile();
   }
 
@@ -268,8 +304,8 @@ void timeSyncCb() {
     int delta = ceil(nowTime / 3600.0) * 3600 - nowTime;
 
     if (delta > 30) {
-      serialPrint("Align to hour required after(sec): ");
-      serialPrintln(String(delta));
+      SERIAL_PRINT("Align to hour required after(sec): ");
+      SERIAL_PRINTLN(String(delta));
 
       timers_aligner.once(delta, [](void) { setTimers(); });
       timersHourAligned = true;
@@ -313,10 +349,10 @@ void checkCurrentFileName() {
       currentFileSize = 0;
     }
 
-    // serialPrint(" #INIT current file:");
-    // serialPrint(currentFileName);
-    // serialPrint(", size:");
-    // serialPrintln(String(currentFileSize));
+    // SERIAL_PRINT(" #INIT current file:");
+    // SERIAL_PRINT(currentFileName);
+    // SERIAL_PRINT(", size:");
+    // SERIAL_PRINTLN(String(currentFileSize));
   }
 }
 
@@ -324,10 +360,10 @@ void flushLogIntoFile() {
   String all = "";
   // int flushSize = 0;
 
-  //serialPrintln("Flush log events");
-  //serialPrint(dataLogPointer);
+  //SERIAL_PRINTLN("Flush log events");
+  //SERIAL_PRINT(dataLogPointer);
 
-  //serialPrint("): ");
+  //SERIAL_PRINT("): ");
 
   if (start == 0 || dataLogPointer == 0) {  // мы пишем лог только если знаем настоящее время.
     return;
@@ -363,8 +399,8 @@ void flushLogIntoFile() {
     line = "[" + stampToPackedDate(&time) + data + "]";
 
     if (currentFileSize + all.length() + 1 + line.length() > FS_BLOCK_SIZE) {
-      //   serialPrintln("----");
-      //   serialPrintln(String(currentFileSize) +  "+" + String(all.length()) +"+ 1 + " + String(line.length()) + " > FS_BLOCK_SIZE");
+      //   SERIAL_PRINTLN("----");
+      //   SERIAL_PRINTLN(String(currentFileSize) +  "+" + String(all.length()) +"+ 1 + " + String(line.length()) + " > FS_BLOCK_SIZE");
 
       if (all.length() > 2) {
         writeToFile(&all, &currentFileName);
@@ -377,7 +413,7 @@ void flushLogIntoFile() {
       all += (i > 0 ? "," : "") + line;
     }
 
-    //  serialPrint(line);
+    //  SERIAL_PRINT(line);
   }
 
   writeToFile(&all, &currentFileName);
@@ -390,8 +426,8 @@ void setRelay(bool set) {
 
   digitalWrite(RELAY_PIN, relayOn ? HIGH : LOW);
 
-  serialPrint("Relay is ");
-  serialPrintln(relayOn ? "ON" : "OFF");
+  SERIAL_PRINT("Relay is ");
+  SERIAL_PRINTLN(relayOn ? "ON" : "OFF");
 
   relaySwitchedAt = nowTime;
 
@@ -411,8 +447,8 @@ void scanSensors() {
   nowTime = time(nullptr);
 
   //  stampToString(nowTime - start, string20);
-  //  serialPrint(string20);
-  //  serialPrint("  ");
+  //  SERIAL_PRINT(string20);
+  //  SERIAL_PRINT("  ");
 
   setCurrentEvent('t');
 
@@ -433,7 +469,7 @@ void scanSensors() {
 
   digitalWrite(PIN_LED, HIGH);
 
-  serialPrintln(String(average));
+ // SERIAL_PRINTLN(String(average));
 
   if (average < -100 ||  // average -127 mean sensors problems so we better to switch off
       (average >= conf.th && relayOn && nowTime - relaySwitchedAt >= (int)conf.ton * 60)) {
@@ -448,7 +484,7 @@ void scanSensors() {
 }
 
 void setTimers() {
-  serialPrintln("Set timers");
+  SERIAL_PRINTLN("Set timers");
 
   tickers[0].attach(conf.read, scanSensors);
   tickers[1].attach(conf.log, putSensorsIntoDataLog);
@@ -489,7 +525,7 @@ void sensorsBufferToFile(byte *buffer) {
   File file = LittleFS.open(SENSORS_FILE, "w");  // Open it
   file.write(buffer, sensorsCount * 9);
   file.close();  // Then close the file again
-                 //serialPrint("Sensor data saved to file");
+                 //SERIAL_PRINT("Sensor data saved to file");
 }
 
 void sensorsBufferFromFile(byte *buffer) {
@@ -498,7 +534,7 @@ void sensorsBufferFromFile(byte *buffer) {
     File file = LittleFS.open(SENSORS_FILE, "r");  // Open it
     file.readBytes((char *)buffer, sensorsCount * 9);
     file.close();  // Then close the file again
-                   //                if (bytes < sensorsCount*9         )         serialPrintln("--SERIOUS: sensor data read less than expected--");    else       serialPrint("Sensor data is read from file");
+                   //                if (bytes < sensorsCount*9         )         SERIAL_PRINTLN("--SERIOUS: sensor data read less than expected--");    else       SERIAL_PRINT("Sensor data is read from file");
   }
 }
 
@@ -534,7 +570,7 @@ void serverSendfile(String fileName) {
     server.setContentLength(siz + 1);
     server.send(200, strContentType, "");
     //  server.client().write(S.c_str(), S.length());
-    //  serialPrintln("\nSend file " + fn + " size=" + String(siz));
+    //  SERIAL_PRINTLN("\nSend file " + fn + " size=" + String(siz));
     while (siz > 0) {
       size_t len = std::min((int)(sizeof(buf) - 1), siz);
       f.read((uint8_t *)buf, len);
@@ -549,12 +585,12 @@ void serverSendfile(String fileName) {
     // server.sendContent(buf, 1);
     server.sendContent("]", 1);
 
-    //  serialPrintln(String(sent) + "b sent");
+    //  SERIAL_PRINTLN(String(sent) + "b sent");
     //   return (sent);
   } else {
     serverSendHeaders();
     server.send(404, strContentType, "File Not Found: " + String(DATA_DIR_SLASH) + fileName);
-    serialPrintln("Bad open file " + fileName);
+    SERIAL_PRINTLN("Bad open file " + fileName);
   }
   // return (0);
 }
@@ -562,8 +598,8 @@ void serverSendfile(String fileName) {
 void parseConfJson(String *json) {
   DeserializationError err = deserializeJson(doc, *json);
 
-  serialPrint("Conf parse ");
-  serialPrintln(err.c_str());
+  SERIAL_PRINT("Conf parse ");
+  SERIAL_PRINTLN(err.c_str());
 
   if (!err) {
     conf.tl = doc["tl"].as<int>();
@@ -686,8 +722,8 @@ void handleConfig() {
     file.println(server.arg("set"));
     file.close();  // Then close the file again
 
-    serialPrint("Conf<--");
-    serialPrint(server.arg("set"));
+    SERIAL_PRINT("Conf<--");
+    SERIAL_PRINT(server.arg("set"));
 
     setTimers();
     putSensorsIntoDataLog();  // TODO - added this line to log as soon as possible after board restart. If not, first log record can be found after 'conf.log' from restart (and this period is about few hours, which is not nice is final graph)
@@ -701,8 +737,8 @@ void handleConfig() {
     sensorsBufferToFile(sensBuff);
     sensorsApplyBufferOn(sensBuff);
 
-    serialPrint("SensConf<--");
-    serialPrintln(line);
+    SERIAL_PRINT("SensConf<--");
+    SERIAL_PRINTLN(line);
   }
 
   handleInfo();
@@ -729,16 +765,16 @@ void configFromFile() {
     int fsize = 0;
     String json;
     File file = LittleFS.open(CONFIG_FILE, "r");  // Open it
-                                                  //    serialPrintln("Config file opened. Size=");
+                                                  //    SERIAL_PRINTLN("Config file opened. Size=");
     fsize = file.size();
-    //    serialPrintln(fsize);
+    //    SERIAL_PRINTLN(fsize);
     if (fsize > 20 && fsize < 150) {
       json = file.readString();
-      //      serialPrintln("Config file content:");
-      //      serialPrintln(json);
+      //      SERIAL_PRINTLN("Config file content:");
+      //      SERIAL_PRINTLN(json);
       parseConfJson(&json);
-      serialPrint("Conf <-- ");
-      serialPrintln(json);
+      SERIAL_PRINT("Conf <-- ");
+      SERIAL_PRINTLN(json);
     }
     file.close();  // Then close the file again
   }
@@ -746,7 +782,7 @@ void configFromFile() {
 
 void isWiFiConnected() {
   if (WiFi.status() != WL_CONNECTED) {
-    //    serialPrintln("No wifi located - set time for next period");
+    //    SERIAL_PRINTLN("No wifi located - set time for next period");
     timers_aligner.once(60 * 15, isWiFiConnected);
   } else {
     settimeofday_cb(timeSyncCb);
@@ -758,8 +794,8 @@ void isWiFiConnected() {
 
     server.begin();
 
-    serialPrint("IP is ");
-    serialPrintln(WiFi.localIP().toString());
+    SERIAL_PRINT("IP is ");
+    SERIAL_PRINTLN(WiFi.localIP().toString());
   }
 }
 
@@ -769,7 +805,7 @@ void WiFiSetup() {
   setLedProfile(LED_WIFI);
 
   WiFi.mode(WIFI_STA);
-  serialPrintln("Waiting wifi");
+  SERIAL_PRINTLN("Waiting wifi");
 
   if (WiFi.SSID() != "")
     wifiManager.setConfigPortalTimeout(WIFI_CONFIG_DURATION_SEC);  //If no access point name has been previously entered disable timeout.
@@ -791,7 +827,7 @@ void setup() {
   pinMode(RELAY_PIN, OUTPUT);
 
   Serial.begin(115200);
-  serialPrintln("\n Starting");
+  SERIAL_PRINTLN("\n Starting");
   setCurrentEvent('b');
   putSensorsIntoDataLog();
 
