@@ -274,7 +274,8 @@ class FileLogRawLine extends Record {
         event : "",
     };
 
-    parse( data ) {
+    parse( _data ) {
+        const data = _.clone(_data);
         const packedDate = data.shift();
         let event        = data.pop();
 
@@ -403,40 +404,37 @@ class Application extends React.Component {
         chartSelectedPeriod     : 24 * 60 * 60 * 1000,
         chartSelectionRightSide : 0,
         localData               : FileLogRawLine.Collection,
-        chart_options           : {
-            title  : { text : "Temperature" },
-            chart  : {
-                zoomType : "x",
-                panKey   : "alt",
-                panning  : true,
-            },
-            xAxis  : {
-                type : "datetime",
-            },
-            time   : {
-                timezoneOffset : (new Date).getTimezoneOffset(),
-            },
-            series : [],
-        },
         stat                    : StatModel,
         lsState                 : LsStateModel,
         loading                 : true
     };
 
-    timer = null;
-    chart = null;
-
-    componentWillMount() {
-        this.loadPreferences();
-        this.state.chart_options.xAxis.events = {
-            setExtremes : p => this.onSetExtremes( p ),
-        }
-        this.state.chart_options.chart.events = {
-            selection : e => this.onChartSelection( e )
-        }
+    timer         = null;
+    chart         = null;
+    chart_options = {
+        title  : { text : "Temperature" },
+        chart  : {
+            zoomType : "x",
+            panKey   : "alt",
+            panning  : true,
+            events   : {
+                selection : e => this.onChartSelection( e )
+            }
+        },
+        xAxis  : {
+            type   : "datetime",
+            events : {
+                setExtremes : p => this.onSetExtremes( p ),
+            }
+        },
+        time   : {
+            timezoneOffset : (new Date).getTimezoneOffset(),
+        },
+        series : [],
     }
 
     componentDidMount() {
+        this.loadPreferences();
         this.getFullState();
     }
 
@@ -549,8 +547,9 @@ class Application extends React.Component {
     }
 
     appendLatestToGraph( isRelayChanged ) {
-        const { sensors, cur } = this.state;
+        const { sensors, conf, cur } = this.state;
         const now              = Math.floor( Date.now() / 1000 ) * 1000;
+        const nowRounded       = conf.read > 60 ? Math.floor( Date.now() / 60000 ) * 60000 : now;
         const lastMeasure      = cur.last * 1000;
 
         for( let i = 0; i < sensors.length; i++ ) {
@@ -561,16 +560,16 @@ class Application extends React.Component {
             }
 
             // ToDo: handle adding plot-bands situation + added variable seems to be absolete
-            this.chart.series[ i ].addPoint( [ now, cur.s[ i ] / 10 ], false );
+            this.chart.series[ i ].addPoint( [ nowRounded, cur.s[ i ] / 10 ], false );
         }
 
         if( cur.rel ) {
             if( isRelayChanged ) { // Append new plot band
-                this.chart.xAxis[ 0 ].addPlotBand( { from : lastMeasure, to : now, color : PLOT_BAND_COLOR } )
+                this.chart.xAxis[ 0 ].addPlotBand( { from : lastMeasure, to : nowRounded, color : PLOT_BAND_COLOR } )
             } else {
                 const band = this.getLatestBand();
                 if( band ) {
-                    band.options.to = now;
+                    band.options.to = nowRounded;
                 }
             }
         } else {
@@ -587,7 +586,7 @@ class Application extends React.Component {
 
         this.chart.redraw();
 
-        this.state.chartSelectedPeriod && this.onSetZoom( now );
+        this.state.chartSelectedPeriod && this.onSetZoom( nowRounded );
     }
 
     getLatestBand() {
@@ -621,11 +620,9 @@ class Application extends React.Component {
         this.loadLsData();
 
         const lastLocalDataRecord = this.state.localData.last();
-        const lastMoment          = lastLocalDataRecord ? dayjs( lastLocalDataRecord.stamp * 1000 ) : 0;
-        const lastFileDataToLoad  = lastMoment ? ("/d/" + lastMoment.format( "YY_M_" ) +
-                                                  Math.floor( lastMoment.get( "date" ) / 10 ) * 10) : null;
+        const latestStampInLs          = lastLocalDataRecord ? lastLocalDataRecord.stamp: 0;
 
-        this.loadFileData( null, lastFileDataToLoad );
+        this.loadFileData( null, latestStampInLs );
     };
 
     loadLsData = () => {
@@ -651,20 +648,18 @@ class Application extends React.Component {
         alert( msg );
     }
 
-    loadFileData = ( file = null, lastFileDataToLoad ) => {
-        const chunk = file || this.state.files.last();
+    loadFileData = ( file = null, latestStampInLs ) => {
+        const fileToLoad = file || this.state.files.last();
 
-        if( chunk ) {
-            chunk.load().then( data => {
+        if( fileToLoad ) {
+            fileToLoad.load().then( data => {
+                const firstRecordInFile = new FileLogRawLine( data[0], { parse : true } )
 
-                this.state.localData.add( _.map( data, item => {
-                    return new FileLogRawLine( item, { parse : true } );
-                } ) );
+                this.state.localData.add( _.map( data, item => new FileLogRawLine( item, { parse : true } ) ) );
 
-                const index = this.state.files.indexOf( chunk );
-
-                if( index > 0 && (!lastFileDataToLoad || chunk.n > lastFileDataToLoad) ) {
-                    _.defer( () => this.loadFileData( this.state.files.at( index - 1 ), lastFileDataToLoad ) )
+                if( firstRecordInFile.stamp > latestStampInLs ) {
+                    const index = this.state.files.indexOf( fileToLoad );
+                    _.defer( () => this.loadFileData( this.state.files.at( index - 1 ), latestStampInLs ) )
                 } else {
                     this.chartFillWithData();
                 }
@@ -925,7 +920,7 @@ class Application extends React.Component {
 
     render() {
         const {
-                  loading, conf, cur, sensors, fs, files, connection, chart_options,
+                  loading, conf, cur, sensors, fs, files, connection,
                   chartSelectedPeriod, show_relays, show_boots, stat, lsState
               }                                  = this.state;
         const [ daysLeftSpace, oneFileDuration ] = this.getLeftSpaceDaysText();
@@ -974,7 +969,7 @@ class Application extends React.Component {
                     <Row>
                         <div id='chart-container' ref='chartbox'>
                             <ReactHighcharts
-                                config={ chart_options }
+                                config={ this.chart_options }
                                 callback={ this.afterRender }
                                 isPureConfig={ true }
                                 height={ 600 }
@@ -1061,7 +1056,7 @@ class Application extends React.Component {
                             { files.length ?
                               <h4>Used { Math.round( fs.used * 1000 / fs.tot ) / 10 }%</h4>
                                            : void 0 }
-                            <span class='hint'>Места на ~{ daysLeftSpace }<br/>Файл на ~{ oneFileDuration }</span>
+                            <span className='hint'>Места на ~{ daysLeftSpace }<br/>Файл на ~{ oneFileDuration }</span>
                             {
                                 files.map( file => <div key={ file }>
                                         { file.n + " " + Math.round( file.s * 10 / 1024 ) / 10 + "Kb" }
