@@ -37,8 +37,9 @@
 #define TEMP_BYTE_SIZE 4
 #define STAMP_BYTE_SIZE 4
 
-#define FILE_CHECK_EACH_HOURS 0
+#define FILE_CHECK_EACH_HOURS 20
 
+//scanSensors, putSensorsIntoDataLog, flushLogIntoFile;
 #define TICKERS 3
 
 #define LED_PIN 4       // D2 on board
@@ -136,7 +137,7 @@ void WiFiSetup(void);
 void setTimers(void);
 void flushLogIntoFile(void);
 
-#define SERIAL_DEBUG 1
+//#define SERIAL_DEBUG 1
 #if SERIAL_DEBUG
  #define SERIAL_PRINT(msg) Serial.print(msg);
  #define SERIAL_PRINTLN(msg) Serial.println(msg);
