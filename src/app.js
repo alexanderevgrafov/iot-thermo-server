@@ -723,6 +723,7 @@ class Application extends React.Component {
     }
 
     onChartSelection( event ) {
+        event.xAxis && event.xAxis[0] &&
         this.state.set( {
             chartSelectedPeriod     : event.xAxis[ 0 ].max - event.xAxis[ 0 ].min,
             chartSelectionRightSide : event.xAxis[ 0 ].max
