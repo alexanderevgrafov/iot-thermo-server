@@ -6,9 +6,17 @@ import * as ExcelJS                                     from "exceljs"
 import * as duration                                    from "dayjs/plugin/duration"
 import * as utc                                         from "dayjs/plugin/utc"
 import * as customParseFormat                           from "dayjs/plugin/customParseFormat"
-import DonutChart                                       from "./DonutChart"
+import { StatDonut }                                   from "./parts/DonutChart"
+import { FileSystem, FileModel, FilesList }             from "./parts/Files"
+import {
+    onServerIpChange, getServerIp, ESPfetch,
+    myHumanizer,downloadFile,
+    transformPackedToStamp, transformStampToPacked,
+    Loader
+}                                                       from "./parts/Utils"
 import { Container, Row, Col, Form, Button, Tabs, Tab } from "./Bootstrap"
 import * as ReactHighcharts                             from "react-highcharts"
+import cx         from "classnames"
 import "./app.scss"
 
 dayjs.extend( customParseFormat );
@@ -16,137 +24,6 @@ dayjs.extend( utc );
 dayjs.extend( duration );
 
 const PLOT_BAND_COLOR = "#ff000015";
-
-let server_ip = localStorage.getItem( "ip" ) || "192.168.0.0";
-
-const myHumanizer = dur => dayjs.duration( dur )
-    .format( " Y\u00A0[г] M\u00A0[мес] D\u00A0[дн] H\u00A0[ч] m\u00A0[мин]" )
-    .replace( /\s0\s[^\d\s]+/g, "" );
-
-const onServerIPchange = ip => {
-    localStorage.setItem( "ip", server_ip = ip );
-};
-
-const server_url = ( path, params ) => {
-    const esc = encodeURIComponent;
-    return "http://" + server_ip + path + (
-        params
-        ? "?" + Object.keys( params )
-               .map( k => esc( k ) + "=" + esc( params[ k ] ) )
-               .join( "&" )
-        : ""
-    );
-};
-
-const Loader = ( { label, inline, absolute, className } ) =>
-    <div className={ cx( "loader", { loaderInline : inline, loaderAbsolute : absolute }, className ) }>
-        <div className='loaderBody'>
-            <img
-                alt='Loader'
-                className='loaderImg'
-                src='./loader.svg'/>
-            <div>{ label }</div>
-        </div>
-    </div>;
-
-const realFetch = url => fetch( url ).then( res => {
-    return res.text()
-} );
-/*const mockFetch = url => {
-  const _url = decodeURI(url);
-  const urlMap = {
-    '20_11_10': require('../txt0321/20-11-10.txt'),
-    '20_11_20': require('../txt0321/20-11-20.txt'),
-    '20_11_30': require('../txt0321/20-11-30.txt'),
-    '20_12_0': require('../txt0321/20-12-0.txt'),
-    '20_12_10': require('../txt0321/20-12-10.txt'),
-    '20_12_20': require('../txt0321/20-12-20.txt'),
-    '20_12_30': require('../txt0321/20-12-30.txt'),
-    '21_1_0': require('../txt0321/21-1-0.txt'),
-    '21_1_10': require('../txt0321/21-1-10.txt'),
-    '21_1_20': require('../txt0321/21-1-20.txt'),
-    '21_1_30': require('../txt0321/21-1-30.txt'),
-    '21_2_0': require('../txt0321/21-2-0.txt'),
-    '21_2_10': require('../txt0321/21-2-10.txt'),
-    '21_2_20': require('../txt0321/21-2-20.txt'),
-    '21_2_30': require('../txt0321/21-2-30.txt'),
-    '21_3_0': require('../txt0321/21-3-0.txt'),
-    '21_3_10': require('../txt0321/21-3-10.txt'),
-    '/conf': require('../txt0321/conf.txt'),
-    '/info?cur=1': require('../txt0321/info.txt'),
-  };
-  const key = _url.replace(/^http:\/\/[^\/]+(\/data\?f=%2Fd%2F)?/, '');
-  const result = urlMap[key];
-
-  return result ? Promise.resolve(result.default) : Promise.reject('Mock not found for ' + url);
-}*/
-
-const ESPfetch = ( url, fixData ) =>
-    realFetch( url )
-        .then( text => {
-            let json;
-            let cleanSet;
-
-            try {
-                if( fixData ) {
-                    const regexp = /(\[\d+(,-?\d+){0,}(,"\w+")?\])/g;
-                    const result = regexp[ Symbol.matchAll ]( text );
-                    const array  = Array.from( result, x => x[ 0 ] );
-
-                    cleanSet = "[" + array.join( "," ) + "]";
-                } else {
-                    cleanSet = text.replace( /,\s{0,}([,\]])/, "$1" );
-                }
-
-                json = JSON.parse( cleanSet );
-            }
-            catch( e ) {
-                console.log( "JSON parse failed, no matter of try to fix" );
-                json = [];
-            }
-
-            return json;
-        } )
-//  .catch(e => console.error(e.message || e));
-
-const downloadFile = ( buffer, type, fileName ) => {
-    const a    = document.createElement( "a" );
-    const blob = new Blob( [ buffer ], { type } );
-
-    return new Promise(
-        function( resolve ) {
-            if( window.navigator.msSaveOrOpenBlob ) {     // IE11
-                window.navigator.msSaveOrOpenBlob( blob, fileName );
-            } else {
-                var url = window.URL.createObjectURL( blob );
-                document.body.appendChild( a );
-                a.style.display = "none";
-                a.href          = url;
-                a.download      = fileName;
-                a.click();
-                window.URL.revokeObjectURL( url );
-                setTimeout( function() { //Just to make sure no special effects occurs
-                    document.body.removeChild( a );
-                }, 2000 );
-            }
-            resolve();
-        } );
-}
-
-const transformPackedToStamp = packedDate => {
-    let res = dayjs.utc( packedDate + "", "YYMMDDHHmm", true );
-    if( !res.isValid() ) {
-        return Date.now() / 1000;
-    }
-    res = res.toDate();
-    res = res.getTime() / 1000;
-
-    return res;
-}
-
-const transformStampToPacked = stamp => {
-    return dayjs.utc( stamp * 1000 ).format( "YYMMDDHHmm" );
-}
 
 @define
 class ConfigModel extends Record {
@@ -163,7 +40,7 @@ class ConfigModel extends Record {
     save() {
         const params = { set : JSON.stringify( this.toJSON() ) };
 
-        return ESPfetch( server_url( "/conf", params ) )
+        return ESPfetch( "/conf", params )
     }
 }
 
@@ -183,22 +60,12 @@ class CurInfoModel extends Record {
         if( options.force ) {
             params.f = 1;
         }
-        return ESPfetch( server_url( "/info", params ) )
+        return ESPfetch( "/info", params )
             .then( json => {
                 json.last = transformPackedToStamp( json.last );
                 this.set( json );
             } )
     }
-}
-
-@define
-class FileSystem extends Record {
-    static attributes = {
-        tot   : 0,
-        used  : 0,
-        block : 0,
-        page  : 0
-    };
 }
 
 @define
@@ -233,34 +100,7 @@ class SensorCollection extends SensorModel.Collection {
     save() {
         const params = { sn : this.map( x => x.toLine() ).join( "," ) };
 
-        return ESPfetch( server_url( "/conf", params ) )
-    }
-}
-
-@define
-class FileModel extends Record {
-    static attributes = {
-        n : "",
-        s : 0,
-    };
-
-    del() {
-        return ESPfetch( server_url( "/data", { d : this.n } ) )
-            .then( json => {
-                if( json.d ) {
-                    this.collection.remove( this );
-                } else {
-                    alert( "Nothing happened" )
-                }
-            } )
-    }
-
-    load() {
-        return ESPfetch( server_url( "/data", { f : this.n } ), true )
-    }
-
-    static collection = {
-        comparator : "n"
+        return ESPfetch( "/conf", params )
     }
 }
 
@@ -275,7 +115,7 @@ class FileLogRawLine extends Record {
     };
 
     parse( _data ) {
-        const data = _.clone(_data);
+        const data       = _.clone( _data );
         const packedDate = data.shift();
         let event        = data.pop();
 
@@ -364,30 +204,6 @@ class LsStateModel extends Record {
 
         this.curYear = this.yearFrom = this.yearTo = dayjs().year();
     }
-}
-
-const StatDonut = ( { show, stat } ) => {
-    if( !show || !stat.duration ) {
-        return null;
-    }
-
-    const percentOn    = stat.duration ? Math.round( stat.time_on * 1000 / stat.duration ) / 10 : 0;
-    const heatTimeText = stat.duration ? ("В течение этих " + myHumanizer( stat.duration ) + " " +
-                                          (percentOn === 0 ? "не включалось" :
-                                           ("обогревало " +
-                                          (percentOn > 98 ? ((percentOn < 100 ? "почти " : "") + "постоянно")
-                                                          : myHumanizer( stat.time_on ))))) : "";
-    return <>
-        <div className='square-form'>
-            <DonutChart sectors={ [ { value : percentOn, color : "red" },
-                                    { value : 100 - percentOn, color : "silver" } ] }
-            />
-            <div className='percent-text'>
-                { stat.duration ? percentOn : "--" }%
-            </div>
-        </div>
-        { heatTimeText }
-    </>
 }
 
 @define
@@ -516,7 +332,7 @@ class Application extends React.Component {
     }
 
     getFullState() {
-        return ESPfetch( server_url( "/conf" ) )
+        return ESPfetch( "/conf" )
             .then( json => this.parseState( json ) )
             .then( () => {
                 this.state.loading = false;
@@ -548,9 +364,9 @@ class Application extends React.Component {
 
     appendLatestToGraph( isRelayChanged ) {
         const { sensors, conf, cur } = this.state;
-        const now              = Math.floor( Date.now() / 1000 ) * 1000;
-        const nowRounded       = conf.read > 60 ? Math.floor( Date.now() / 60000 ) * 60000 : now;
-        const lastMeasure      = cur.last * 1000;
+        const now                    = Math.floor( Date.now() / 1000 ) * 1000;
+        const nowRounded             = conf.read > 60 ? Math.floor( Date.now() / 60000 ) * 60000 : now;
+        const lastMeasure            = cur.last * 1000;
 
         for( let i = 0; i < sensors.length; i++ ) {
             const ser = this.chart.series[ i ];
@@ -620,7 +436,7 @@ class Application extends React.Component {
         this.loadLsData();
 
         const lastLocalDataRecord = this.state.localData.last();
-        const latestStampInLs          = lastLocalDataRecord ? lastLocalDataRecord.stamp: 0;
+        const latestStampInLs     = lastLocalDataRecord ? lastLocalDataRecord.stamp : 0;
 
         this.loadFileData( null, latestStampInLs );
     };
@@ -653,7 +469,7 @@ class Application extends React.Component {
 
         if( fileToLoad ) {
             fileToLoad.load().then( data => {
-                const firstRecordInFile = new FileLogRawLine( data[0], { parse : true } )
+                const firstRecordInFile = new FileLogRawLine( data[ 0 ], { parse : true } )
 
                 this.state.localData.add( _.map( data, item => new FileLogRawLine( item, { parse : true } ) ) );
 
@@ -723,7 +539,7 @@ class Application extends React.Component {
     }
 
     onChartSelection( event ) {
-        event.xAxis && event.xAxis[0] &&
+        event.xAxis && event.xAxis[ 0 ] &&
         this.state.set( {
             chartSelectedPeriod     : event.xAxis[ 0 ].max - event.xAxis[ 0 ].min,
             chartSelectionRightSide : event.xAxis[ 0 ].max
@@ -1000,8 +816,8 @@ class Application extends React.Component {
                     <Row>
                         <Col>
                             <Form.Row label='ESP IP'>
-                                <Form.ControlLinked valueLink={ Link.value( server_ip, x => {
-                                    onServerIPchange( x );
+                                <Form.ControlLinked valueLink={ Link.value( getServerIp(), x => {
+                                    onServerIpChange( x );
                                     this.asyncUpdate()
                                 } ) }/>
                             </Form.Row>
@@ -1058,13 +874,7 @@ class Application extends React.Component {
                               <h4>Used { Math.round( fs.used * 1000 / fs.tot ) / 10 }%</h4>
                                            : void 0 }
                             <span className='hint'>Места на ~{ daysLeftSpace }<br/>Файл на ~{ oneFileDuration }</span>
-                            {
-                                files.map( file => <div key={ file }>
-                                        { file.n + " " + Math.round( file.s * 10 / 1024 ) / 10 + "Kb" }
-                                        <Button onClick={ () => file.del() } variant='light' size='sm'>Delete</Button>
-                                    </div>
-                                )
-                            }
+                            <FilesList files={ files }/>
                         </Col>
                         <Col>
                             <h4>LS operations</h4>

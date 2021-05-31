@@ -1,11 +1,12 @@
-import React     from "react-mvx"
-import { define } from "type-r";
-import cx         from "classnames";
+import React           from "react-mvx"
+import { define }      from "type-r";
+import cx              from "classnames";
+import { myHumanizer } from "./Utils";
 
 const MAX_ARC = Math.PI * 2 / 3;  // supposed to be less than PI, always!
 
 @define
-export default class DonutChart extends React.Component {
+class DonutChart extends React.Component {
     static props = {
         sectors       : Array,  // supposed format is [{ value:Number [, color:String] },...]
         width         : "100%",
@@ -107,4 +108,28 @@ export default class DonutChart extends React.Component {
             </g>
         </svg>;
     }
+}
+
+export const StatDonut = ( { show, stat } ) => {
+    if( !show || !stat.duration ) {
+        return null;
+    }
+
+    const percentOn    = stat.duration ? Math.round( stat.time_on * 1000 / stat.duration ) / 10 : 0;
+    const heatTimeText = stat.duration ? ("В течение этих " + myHumanizer( stat.duration ) + " " +
+                                          (percentOn === 0 ? "не включалось" :
+                                           ("обогревало " +
+                                          (percentOn > 98 ? ((percentOn < 100 ? "почти " : "") + "постоянно")
+                                                          : myHumanizer( stat.time_on ))))) : "";
+    return <>
+        <div className='square-form'>
+            <DonutChart sectors={ [ { value : percentOn, color : "red" },
+                                    { value : 100 - percentOn, color : "silver" } ] }
+            />
+            <div className='percent-text'>
+                { stat.duration ? percentOn : "--" }%
+            </div>
+        </div>
+        { heatTimeText }
+    </>
 }

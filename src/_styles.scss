@@ -180,3 +180,27 @@ h4.relay.on {
 .highcharts-reset-zoom {
   display: none;
 }
+
+.files-list-box {
+  display: flex;
+  flex-wrap: wrap;
+
+  .files-list-item {
+    background-color: silver;
+    border-radius:4px;
+    margin:1px;
+    padding:4px;
+
+    .name, .btn, .size {
+      display: none;
+    }
+
+    &:hover {
+      background-color: pink;
+
+      .name, .btn, .size {
+        display: block;
+      }
+    }
+  }
+}
