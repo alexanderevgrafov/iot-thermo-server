@@ -127,7 +127,7 @@ time_t fileCheckedAt = 0;
 String currentFileName;
 long currentFileSize;
 
-char string20[20];
+//char string20[20];
 int sensorsCount = 0;
 int dataLogPointer = 0;
 bool relayOn = false;
@@ -137,7 +137,7 @@ void WiFiSetup(void);
 void setTimers(void);
 void flushLogIntoFile(void);
 
-//#define SERIAL_DEBUG 1
+// #define SERIAL_DEBUG 1
 #if SERIAL_DEBUG
  #define SERIAL_PRINT(msg) Serial.print(msg);
  #define SERIAL_PRINTLN(msg) Serial.println(msg);
@@ -207,23 +207,18 @@ void serverSend(String smth) {
 }
 
 void genFilename(String *fileName) {
+  char buffer[8];
   int index = 0;
 
   timeTmp = localtime(&nowTime);
   do {
-    *fileName = DATA_DIR_SLASH +
-                String(timeTmp->tm_year - 100) + "_" +
-                String(timeTmp->tm_mon + 1) + "_" +
-                String(timeTmp->tm_mday) +
-                (index > 0 ? ("_" + String(index)) : "");  //+ String(10*(timeTmp->tm_mday/8));
-
+    sprintf(buffer, "%02d%02d%02d", timeTmp->tm_year - 100, timeTmp->tm_mon + 1, timeTmp->tm_mday);
+    *fileName = DATA_DIR_SLASH + String(buffer) + (index > 0 ? ("_" + String(index)) : "");
     index++;
   } while (LittleFS.exists(*fileName));
 
-    SERIAL_PRINT("New file name generated:");
-    SERIAL_PRINTLN(*fileName);
-
-  //SERIAL_PRINT("Accepted!!");
+  SERIAL_PRINT("New file name generated:");
+  SERIAL_PRINTLN(*fileName); 
 }
 
 void setCurrentEvent(char type) {
@@ -259,9 +254,9 @@ void writeToFile(String *line, String *fileName) {
   //if (!line->length()) return;
   SERIAL_PRINTLN("writeToFile");
 
-  // SERIAL_PRINT("File opened to append:");
-  //    SERIAL_PRINTLN(*fileName);
-  //  SERIAL_PRINTLN(*line);
+  SERIAL_PRINT("File opened to append:");
+  SERIAL_PRINTLN(*fileName);
+  SERIAL_PRINTLN(*line);
 
   if ((fileCheckedAt + FILE_CHECK_EACH_HOURS * 60 * 60) < nowTime) {
     SERIAL_PRINTLN("File check");
@@ -282,8 +277,8 @@ void writeToFile(String *line, String *fileName) {
     file.print(*line);
 
     currentFileSize = file.size();
-    //  SERIAL_PRINT("ResultingSize:");
-    //  SERIAL_PRINTLN(String(currentFileSize));
+     SERIAL_PRINT("ResultingSize:");
+     SERIAL_PRINTLN(String(currentFileSize));
 
     file.close();
   }
@@ -350,10 +345,10 @@ void checkCurrentFileName() {
       currentFileSize = 0;
     }
 
-    // SERIAL_PRINT(" #INIT current file:");
-    // SERIAL_PRINT(currentFileName);
-    // SERIAL_PRINT(", size:");
-    // SERIAL_PRINTLN(String(currentFileSize));
+    SERIAL_PRINT(" #INIT current file:");
+    SERIAL_PRINT(currentFileName);
+    SERIAL_PRINT(", size:");
+    SERIAL_PRINTLN(String(currentFileSize));
   }
 }
 

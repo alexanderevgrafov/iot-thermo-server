@@ -1,3 +1,7 @@
+.config-tab {
+  padding-top: 10px;
+}
+
 .top-right {
   position: absolute;
   top: 0;
@@ -186,21 +190,16 @@ h4.relay.on {
   flex-wrap: wrap;
 
   .files-list-item {
-    background-color: silver;
-    border-radius:4px;
-    margin:1px;
-    padding:4px;
-
-    .name, .btn, .size {
-      display: none;
-    }
+    background-color: #f2f2f2;
+    border: 1px solid #d2d2d2;
+    border-radius: 8px;
+    margin: 2px;
+    padding: 1px 4px 0 4px;
+    font-size: 6pt;
+    cursor: default;
 
     &:hover {
       background-color: pink;
-
-      .name, .btn, .size {
-        display: block;
-      }
     }
   }
 }

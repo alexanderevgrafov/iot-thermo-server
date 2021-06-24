@@ -3,6 +3,19 @@ import { Button }         from "../Bootstrap";
 import { define, Record } from "type-r";
 import { ESPfetch }        from "./Utils";
 
+// Get rid of it in future since filenames should be correct date and will sort automatically
+const fileNameToDate = name => {
+    const p = name.split('_');
+
+    if (p.length < 3) {
+        return name;
+    } else {
+        const t = (parseInt(p[0])*10000 + parseInt(p[1])*100 + parseInt(p[2])*1) + ( p[3] ? ('_' + p[3]) : '');
+
+        return t;
+    }
+}
+
 @define
 export class FileSystem extends Record {
     static attributes = {
@@ -43,7 +56,9 @@ export class FileModel extends Record {
     }
 
     static collection = {
-        comparator : "n"
+        comparator : function(a,b) {
+            return fileNameToDate(a.n) > fileNameToDate(b.n) ? 1 : -1;
+        }
     }
 }
 
@@ -52,9 +67,7 @@ export const FilesList = ( { files } ) => <div className='files-list-box'>{
             const sizeKb = Math.round( file.s * 10 / 1024 ) / 10 + "Kb";
 
             return <div className='files-list-item' key={ file } title={ file.n + ", " + sizeKb } onDoubleClick={ () => file.del() }>
-                {/*<span className='name'>{ file.n }</span>*/}
-                {/*<span className='size'>{ sizeKb }</span>*/}
-                {/*<Button onClick={ () => file.del() } variant='light' size='sm'>Delete</Button>*/}
+                <span className='name'>{ file.n }</span>
             </div>
         }
     ) }</div>

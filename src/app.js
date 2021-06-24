@@ -812,10 +812,11 @@ class Application extends React.Component {
                         </Col>
                     </Row>
                 </Tab>
-                <Tab eventKey='config' title='Конфигурация'>
+                <Tab eventKey='config' title='Конфигурация' className='config-tab'>
                     <Row>
                         <Col>
-                            <Form.Row label='ESP IP'>
+                            <h4>Config</h4>
+                            <Form.Row label='Board IP'>
                                 <Form.ControlLinked valueLink={ Link.value( getServerIp(), x => {
                                     onServerIpChange( x );
                                     this.asyncUpdate()
@@ -824,6 +825,9 @@ class Application extends React.Component {
                             <Form.Row>
                                 <Button onClick={ () => this.getFullState() } variant='outline-info'>Get From
                                     ESP</Button>
+                            </Form.Row>
+                            <Form.Row>
+                                <h5>Time (mins)</h5>
                             </Form.Row>
                             <Form.Row label='T low'>
                                 <Form.ControlLinked valueLink={ conf.linkAt( "tl" ) }/>
@@ -853,6 +857,7 @@ class Application extends React.Component {
                             </Form.Row>
                         </Col>
                         <Col>
+                            <h4>Sensors</h4>
                             {
                                 sensors.map( sns =>
                                     <Form.Row key={ sns }>
@@ -869,9 +874,9 @@ class Application extends React.Component {
                             </Form.Row>
                         </Col>
                         <Col>
-                            <h4>ESP disk state</h4>
+                            <h4>Storage</h4>
                             { files.length ?
-                              <h4>Used { Math.round( fs.used * 1000 / fs.tot ) / 10 }%</h4>
+                              <h5>Used { Math.round( fs.used * 1000 / fs.tot ) / 10 }%</h5>
                                            : void 0 }
                             <span className='hint'>Места на ~{ daysLeftSpace }<br/>Файл на ~{ oneFileDuration }</span>
                             <FilesList files={ files }/>

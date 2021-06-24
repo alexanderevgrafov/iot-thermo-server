@@ -11,8 +11,8 @@
   "homepage": "",
   "scripts": {
     "watch": "webpack  --progress --colors --watch --env.develop",
-    "build": "webpack  --progress --colors --env.develop",
-    "prod": "webpack"
+    "compile": "webpack  --progress --colors --env.develop",
+    "build": "webpack"
   },
   "dependencies": {
     "dayjs": "^1.10.4",
