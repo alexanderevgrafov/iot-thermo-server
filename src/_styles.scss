@@ -18,10 +18,14 @@
   right: 0;
   transform-origin: bottom right;
   transform: rotate(-90deg);
+  white-space: nowrap;
 }
 
 .chart_options {
   display: flex;
+  align-items: center;
+  width: 100%;
+  justify-content: flex-end;
 }
 
 .z_option {

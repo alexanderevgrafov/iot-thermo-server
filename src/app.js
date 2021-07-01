@@ -6,17 +6,17 @@ import * as ExcelJS                                     from "exceljs"
 import * as duration                                    from "dayjs/plugin/duration"
 import * as utc                                         from "dayjs/plugin/utc"
 import * as customParseFormat                           from "dayjs/plugin/customParseFormat"
-import { StatDonut }                                   from "./parts/DonutChart"
+import { StatDonut }                                    from "./parts/DonutChart"
 import { FileSystem, FileModel, FilesList }             from "./parts/Files"
 import {
     onServerIpChange, getServerIp, ESPfetch,
-    myHumanizer,downloadFile,
+    myHumanizer, downloadFile,
     transformPackedToStamp, transformStampToPacked,
     Loader
 }                                                       from "./parts/Utils"
 import { Container, Row, Col, Form, Button, Tabs, Tab } from "./Bootstrap"
 import * as ReactHighcharts                             from "react-highcharts"
-import cx         from "classnames"
+import cx                                               from "classnames"
 import "./app.scss"
 
 dayjs.extend( customParseFormat );
@@ -228,7 +228,7 @@ class Application extends React.Component {
     timer         = null;
     chart         = null;
     chart_options = {
-        title  : { text : "Temperature" },
+        title  : { text : null },
         chart  : {
             zoomType : "x",
             panKey   : "alt",
@@ -747,33 +747,9 @@ class Application extends React.Component {
                 loading ? <Loader/> : void 0
             }
             <div className='top-right'>
-                <div className='chart_options'>
-                    <span onClick={ () => this.state.show_boots = !show_boots }
-                          className={ cx( "z_option red", { option_sel : show_boots } ) }>перезагрузки</span>
-                    <span onClick={ () => this.state.show_relays = !show_relays }
-                          className={ cx( "z_option red", { option_sel : show_relays } ) }>включения</span>
-                    { _.map(
-                        [ [ 30, "30m" ],
-                          [ 60 * 2, "2h" ],
-                          [ 60 * 6, "6h" ],
-                          [ 60 * 24, "24h" ],
-                          [ 60 * 24 * 7, "7d" ],
-                          [ 60 * 24 * 30, "30d" ],
-                          [ 60 * 24 * 30 * 3, "90d" ],
-                          [ 0, "All" ] ],
-                        ( [ min, name ] ) =>
-                            <span onClick={ () => this.setZoom( min * 60 * 1000 ) }
-                                  className={ cx( "z_option",
-                                      { option_sel : chartSelectedPeriod === min * 60 * 1000 } ) }
-                                  key={ min }
-                            >{ name }</span> )
-                    }
-                </div>
                 <div className='up_time'>{
                     connection ? "Аптайм " + myHumanizer( cur.up * 1000 ) : "Нет связи с платой"
                 }</div>
-                <Button onClick={ () => this.getCurInfo( true ) }
-                        variant='outline-primary'>Load now</Button>
             </div>
             <Tabs defaultActiveKey='chart'
                   onSelect={ key => {
@@ -783,6 +759,32 @@ class Application extends React.Component {
                   } }
             >
                 <Tab eventKey='chart' title='Данные'>
+                    <Row>
+                        <div className='chart_options'>
+                            <Button onClick={ () => this.getCurInfo( true ) }
+                                    variant='outline-primary' size='sm'>Load now</Button>
+                            { _.map(
+                                [ [ 30, "30m" ],
+                                  [ 60 * 2, "2h" ],
+                                  [ 60 * 6, "6h" ],
+                                  [ 60 * 24, "24h" ],
+                                  [ 60 * 24 * 7, "7d" ],
+                                  [ 60 * 24 * 30, "30d" ],
+                                  [ 60 * 24 * 30 * 3, "90d" ],
+                                  [ 0, "All" ] ],
+                                ( [ min, name ] ) =>
+                                    <span onClick={ () => this.setZoom( min * 60 * 1000 ) }
+                                          className={ cx( "z_option",
+                                              { option_sel : chartSelectedPeriod === min * 60 * 1000 } ) }
+                                          key={ min }
+                                    >{ name }</span> )
+                            }
+                            <span onClick={ () => this.state.show_boots = !show_boots }
+                                  className={ cx( "z_option red", { option_sel : show_boots } ) }>перезагрузки</span>
+                            <span onClick={ () => this.state.show_relays = !show_relays }
+                                  className={ cx( "z_option red", { option_sel : show_relays } ) }>включения</span>
+                        </div>
+                    </Row>
                     <Row>
                         <div id='chart-container' ref='chartbox'>
                             <ReactHighcharts
