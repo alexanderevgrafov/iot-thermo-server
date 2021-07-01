@@ -794,7 +794,7 @@ class Application extends React.Component {
                                 height={ 600 }
                             />
                             <Button onClick={ () => this.onChartZoomOut() } label='Zoom out' size='sm'
-                                    valiean='outline-info'
+                                    variant='outline-primary'
                                     id='zoom-out-button'/>
                         </div>
                     </Row>

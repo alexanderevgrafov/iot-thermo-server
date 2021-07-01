@@ -39,16 +39,7 @@
 }
 
 .option_sel {
-  background-color: $primary;
-  color: white !important;
-}
-
-.z_option.red {
   color: $red;
-}
-
-.option_sel.red {
-  background-color: $red;
 }
 
 $loader_sx: 150px;
@@ -176,7 +167,8 @@ h4.relay.on {
 
 #zoom-out-button {
   position: absolute;
-  top: 10px;
+  bottom:0;
+  width:100px;
   right: 0;
 }
 
@@ -206,4 +198,8 @@ h4.relay.on {
       background-color: pink;
     }
   }
+}
+
+.btn-outline-primary {
+background-color: white;
 }
