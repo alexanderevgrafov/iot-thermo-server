@@ -677,23 +677,25 @@ class Application extends React.Component {
     }
 
     exportFromLs() {
-        const { localData, sensors, lsState : { monthFrom, yearFrom, monthTo, yearTo } } = this.state;
-        const from                                                                       = dayjs.utc(
-            `${ yearFrom }-${ monthFrom }-01` ).unix();
-        const to                                                                         = dayjs.utc(
-            `${ yearTo }-${ monthTo }-01` ).add( 1, "month" ).unix();
-        const periodText                                                                 = dayjs( from * 1000 )
-                                                                                               .format( "DD_MM_YYYY" ) +
-                                                                                           "-" + dayjs( to * 1000 )
-                                                                                               .format( "DD_MM_YYYY" );
-        const exportData                                                                 = localData.filter(
+        const { localData, sensors,
+                  lsState : {
+                      monthFrom, yearFrom, monthTo, yearTo
+                  }
+              }          = this.state;
+        const from       = dayjs.utc( `${ yearFrom }-${ monthFrom }-01` ).unix();
+        const to         = dayjs.utc( `${ yearTo }-${ monthTo }-01` ).add( 1, "month" ).unix();
+        const periodText = dayjs( from * 1000 )
+                               .format( "DD_MM_YYYY" ) +
+                           "-" + dayjs( to * 1000 )
+                               .format( "DD_MM_YYYY" );
+        const exportData = localData.filter(
             row => row.stamp >= from && row.stamp < to );
-        const workbook                                                                   = new ExcelJS.Workbook();
-        const sheet                                                                      = workbook.addWorksheet(
+        const workbook   = new ExcelJS.Workbook();
+        const sheet      = workbook.addWorksheet(
             periodText, {
                 headerFooter : { firstHeader : periodText }
             } );
-        const columns                                                                    = [ {
+        const columns    = [ {
             header : "Time", key : "time"
         } ];
 
@@ -702,18 +704,15 @@ class Application extends React.Component {
         sheet.columns = columns;
 
         _.each( exportData, row => {
-            const { arr, stamp } = row;
+            const { arr, event, stamp } = row;
             const rowData        = {
-                time : dayjs.utc( stamp * 1000 ).toDate()
+                time : dayjs.utc( stamp * 1000 ).toDate(),
+                event
             }
 
-            if( typeof arr[ 0 ] === "number" ) {
-                sensors.each( ( sensor, i ) => rowData[ "s" + i ] = arr[ i ] / 10 )
-            } else {
-                rowData.event = arr[ 0 ];
-            }
+            _.each(arr, (x, i) => rowData[ "s" + i ] = arr[ i ] / 10 );
 
-            sheet.addRow( rowData )
+            sheet.addRow( rowData );
         } );
 
         workbook.xlsx.writeBuffer().then( buffer =>
