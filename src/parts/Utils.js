@@ -2,11 +2,14 @@ import * as dayjs from "dayjs";
 import React      from "react-mvx";
 import cx         from "classnames"
 
-const getServerIp = () => localStorage.getItem( "ip" ) || "192.168.0.0"
+const getServerIp = () => localStorage.getItem( "ip" ) || ""
 
 let server_ip = getServerIp();
 
 const server_url = ( path, params ) => {
+    if( !server_ip ) {
+        return "";
+    }
     const esc = encodeURIComponent;
     return "http://" + server_ip + path + (
         params
@@ -86,7 +89,6 @@ const ESPfetch = ( path, params = {}, fixData ) => {
             return json;
         } )
 }
-//  .catch(e => console.error(e.message || e));
 
 const downloadFile = ( buffer, type, fileName ) => {
     const a    = document.createElement( "a" );

@@ -139,14 +139,12 @@ void flushLogIntoFile(void);
 
 // #define SERIAL_DEBUG 1
 #if SERIAL_DEBUG
- #define SERIAL_PRINT(msg) Serial.print(msg);
- #define SERIAL_PRINTLN(msg) Serial.println(msg);
+#define SERIAL_PRINT(msg) Serial.print(msg);
+#define SERIAL_PRINTLN(msg) Serial.println(msg);
 #else
- #define SERIAL_PRINT(msg) ;
- #define SERIAL_PRINTLN(msg) ;
+#define SERIAL_PRINT(msg) ;
+#define SERIAL_PRINTLN(msg) ;
 #endif
-
- 
 
 /*
 void stampToString(time_t stamp, char *buffer)
@@ -218,7 +216,7 @@ void genFilename(String *fileName) {
   } while (LittleFS.exists(*fileName));
 
   SERIAL_PRINT("New file name generated:");
-  SERIAL_PRINTLN(*fileName); 
+  SERIAL_PRINTLN(*fileName);
 }
 
 void setCurrentEvent(char type) {
@@ -277,8 +275,8 @@ void writeToFile(String *line, String *fileName) {
     file.print(*line);
 
     currentFileSize = file.size();
-     SERIAL_PRINT("ResultingSize:");
-     SERIAL_PRINTLN(String(currentFileSize));
+    SERIAL_PRINT("ResultingSize:");
+    SERIAL_PRINTLN(String(currentFileSize));
 
     file.close();
   }
@@ -352,6 +350,32 @@ void checkCurrentFileName() {
   }
 }
 
+String genDataLogLine(event_record *record) {
+  String data = "";
+
+  if (record->event == 'b') {
+    data = ",\"st\"";
+  } else {
+    for (int k = 0; k < sensorsCount; k++) {
+      data += ",";
+      data += record->t[k];
+    }
+    switch (record->event) {
+      case 'n':
+        data += ",\"on\"";
+        break;
+      case 'f':
+        data += ",\"off\"";
+        break;
+    }
+  }
+
+  // маленькое число в stamp означает что запись была добавлена ДО синхронизации со временем и является числом секунд со старта.
+  time_t time = record->stamp > 900000000 ? record->stamp : (time_t)(nowTime - millis() / 1000 + record->stamp);
+
+  return "[" + stampToPackedDate(&time) + data + "]";
+}
+
 void flushLogIntoFile() {
   String all = "";
   // int flushSize = 0;
@@ -370,29 +394,7 @@ void flushLogIntoFile() {
   all = currentFileSize > 0 ? "," : "[";
 
   for (int i = 0; i < dataLogPointer; i++) {
-    String line, data = "";
-
-    if (dataLog[i].event == 'b') {
-      data = ",\"st\"";
-    } else {
-      for (int k = 0; k < sensorsCount; k++) {
-        data += ",";
-        data += dataLog[i].t[k];
-      }
-      switch (dataLog[i].event) {
-        case 'n':
-          data += ",\"on\"";
-          break;
-        case 'f':
-          data += ",\"off\"";
-          break;
-      }
-    }
-
-    // маленькое число в stamp означает что запись была добавлена ДО синхронизации со временем и является числом секунд со старта.
-    time_t time = dataLog[i].stamp > 900000000 ? dataLog[i].stamp : (time_t)(nowTime - millis() / 1000 + dataLog[i].stamp);
-
-    line = "[" + stampToPackedDate(&time) + data + "]";
+    String line = genDataLogLine(&dataLog[i]);
 
     if (currentFileSize + all.length() + 1 + line.length() > FS_BLOCK_SIZE) {
       //   SERIAL_PRINTLN("----");
@@ -408,7 +410,6 @@ void flushLogIntoFile() {
     } else {
       all += (i > 0 ? "," : "") + line;
     }
-
     //  SERIAL_PRINT(line);
   }
 
@@ -465,15 +466,15 @@ void scanSensors() {
 
   digitalWrite(PIN_LED, HIGH);
 
- // SERIAL_PRINTLN(String(average));
+  // SERIAL_PRINTLN(String(average));
 
   if (average < -100 ||  // average -127 mean sensors problems so we better to switch off
-      (average >= conf.th && relayOn && nowTime - relaySwitchedAt >= (int)conf.ton * 60)) {
+      (average >= conf.th && relayOn && nowTime - relaySwitchedAt >= (int)conf.ton)) {
     setRelay(false);
     setLedProfile(LED_R_OFF);
   } else if (
       average > -100  // -127 if contact is broken or if weights are all 0
-      && average <= conf.tl && !relayOn && nowTime - relaySwitchedAt >= (int)conf.toff * 60) {
+      && average <= conf.tl && !relayOn && nowTime - relaySwitchedAt >= (int)conf.toff) {
     setRelay(true);
     setLedProfile(LED_R_ON);
   }
@@ -611,29 +612,38 @@ void parseConfJson(String *json) {
 void handleInfo() {
   String msg = "{";
 
+  nowTime = time(nullptr);
+
   if (server.arg("cur").length() > 0) {
     float w, ws = 0, average = 0;
-    // даже если последняя событие curSensors - НЕ типа 't' - все равно в массиве записи сохраняются последние показания датчиков. Их перетирают только более свежие показания.
+    unsigned long upTime = start ? nowTime - start : millis() / 1000;
 
     if (server.arg("f").length() > 0)
       scanSensors();
-    else
-      nowTime = time(nullptr);
 
-    msg += "\"last\":" + stampToPackedDate(&curSensors.stamp) + ",\"up\":" + String(nowTime - start) + ",\"rel\":" + String((int)relayOn) + ",\"s\":[";
+    msg += "\"up\":" + String(upTime) + ",\"rel\":" + String((int)relayOn) + ",\"cur\":" + genDataLogLine(&curSensors);
 
     for (int i = 0; i < sensorsCount; i++) {
-      if (i > 0)
-        msg += ",";
-      msg += curSensors.t[i];
       w = sensor[i].weight / 100.0;
       ws += w;
       average += curSensors.t[i] * w / 10;
     }
 
     average = ws ? average / ws : -127;
+    msg += ",\"avg\":" + String(average) + "}";
 
-    msg += "],\"avg\":" + String(average) + "}";
+  } else if (server.arg("last").length() > 0) {
+    msg += "\"last\":[";
+
+    if (start != 0 && dataLogPointer != 0) {  // мы пишем лог только если знаем настоящее время.
+      for (int i = 0; i < dataLogPointer; i++) {
+        String line = genDataLogLine(&dataLog[i]);
+
+        msg += (i > 0 ? "," : "") + line;
+      }
+    }
+
+    msg += "]}";
   } else {
     FSInfo fs;
     float flag = false;
@@ -648,7 +658,9 @@ void handleInfo() {
     msg += fs.blockSize;
     msg += ",\"page\":";
     msg += fs.pageSize;
-    msg += "},\"cur\":[";
+    msg += "},\"rel\":";
+    msg += (int)relayOn;
+    msg += ",\"cur\":[";
     for (int i = 0; i < sensorsCount; i++) {
       if (i > 0)
         msg += ",";

@@ -2,6 +2,7 @@ import React, { Link }                                  from "react-mvx"
 import * as ReactDOM                                    from "react-dom"
 import { Record, define, type }                         from "type-r"
 import * as dayjs                                       from "dayjs"
+import * as ms                                          from "ms"
 import * as ExcelJS                                     from "exceljs"
 import * as duration                                    from "dayjs/plugin/duration"
 import * as utc                                         from "dayjs/plugin/utc"
@@ -25,6 +26,10 @@ dayjs.extend( duration );
 
 const PLOT_BAND_COLOR = "#ff000015";
 
+const secondsLink = ( model, attr ) => Link.value(
+    ms( model[ attr ] * 1000 ),
+    x => model[ attr ] = parseInt(x)==x ? parseInt(x) : Math.round( ms( x ) / 1000 ) )
+
 @define
 class ConfigModel extends Record {
     static attributes = {
@@ -41,6 +46,15 @@ class ConfigModel extends Record {
         const params = { set : JSON.stringify( this.toJSON() ) };
 
         return ESPfetch( "/conf", params )
+    }
+
+    validate( obj ) {
+        const error = _.compact(
+            _.map( [ "tl", "th", "ton", "toff", "read", "log", "flush" ],
+                    key => parseInt( obj[ key ] ) != obj[ key ] ? `${ key } is not correct` : "" ) )
+            .join( "; " );
+
+        return error || super.validate( obj );
     }
 }
 
@@ -222,7 +236,7 @@ class Application extends React.Component {
         localData               : FileLogRawLine.Collection,
         stat                    : StatModel,
         lsState                 : LsStateModel,
-        loading                 : true
+        loadingTxt              : "Configuration..."
     };
 
     timer         = null;
@@ -319,42 +333,61 @@ class Application extends React.Component {
                       return { addr, weight }
                   } );
 
-        this.state.set( {
-            conf  : json.conf,
-            fs    : json.fs,
-            sensors,
-            files : json.dt
+        this.state.transaction( () => {
+            this.state.set( {
+                conf  : json.conf,
+                fs    : json.fs,
+                sensors,
+                files : json.dt
+            } );
+
+            this.state.cur.rel = json.rel;
+
+            this.state.sensors.loadNames();
+
+            this.timer && this.setTimer();
         } );
-
-        this.state.sensors.loadNames();
-
-        this.timer && this.setTimer();
     }
 
     getFullState() {
         return ESPfetch( "/conf" )
-            .then( json => this.parseState( json ) )
+            .then( json => json && this.parseState( json ) )
             .then( () => {
-                this.state.loading = false;
+                this.state.loadingTxt = "";
                 this.loadAllData();
             } )
             .catch( err => {
                 console.error( "getFullState error: ", err );
-                this.state.loading = false;
+                this.state.loadingTxt = "";
             } )
     }
 
-    getCurInfo( force ) {
-        const { cur : cur0 }      = this.state;
-        const { rel : prevRelay } = cur0;
+    getCurInfo( options = {} ) {
+        const params = {};
 
-        cur0.load( { force } )
-            .then( () => {
-                const { cur }        = this.state;
-                const isRelayChanged = cur.rel !== prevRelay && prevRelay !== null;
+        if( options.last ) {
+            params.last = 1;
+        } else {
+            params.cur = 1;
+        }
+
+        if( options.force ) {
+            params.f = 1;
+        }
+
+        return ESPfetch( "/info", params )
+            .then( json => {
+                const points = json.last || [ json.cur ];
+
+                this.appendLatestToGraph( points, options.force );
+
+                if( !options.last ) {
+                    this.state.cur.set( _.pick( json, [ "rel", "up", "avg" ] ) ); //important to set relay value after appending points
+                    json.cur.shift(); // DIRTY!!!
+                    this.state.cur.s = json.cur;
+                }
 
                 this.state.connection = true;
-                this.appendLatestToGraph( isRelayChanged );
             } )
             .catch( err => {
                 console.error( err );
@@ -362,47 +395,58 @@ class Application extends React.Component {
             } )
     }
 
-    appendLatestToGraph( isRelayChanged ) {
+    appendLatestToGraph( _points, exactTime ) {
         const { sensors, conf, cur } = this.state;
         const now                    = Math.floor( Date.now() / 1000 ) * 1000;
         const nowRounded             = conf.read > 60 ? Math.floor( Date.now() / 60000 ) * 60000 : now;
-        const lastMeasure            = cur.last * 1000;
+        const points                 = new FileLogRawLine.Collection();
+        let band                     = this.getLatestBand();
+        let relay                    = cur.rel;
+
+        points.reset( _points, { parse : true } );
 
         for( let i = 0; i < sensors.length; i++ ) {
-            const ser = this.chart.series[ i ];
-
-            if( !ser || !ser.data.length ) {
+            if( !this.chart.series[ i ] ) {
                 this.addSplineOnChart( i );
             }
-
-            // ToDo: handle adding plot-bands situation + added variable seems to be absolete
-            this.chart.series[ i ].addPoint( [ nowRounded, cur.s[ i ] / 10 ], false );
         }
 
-        if( cur.rel ) {
-            if( isRelayChanged ) { // Append new plot band
-                this.chart.xAxis[ 0 ].addPlotBand( { from : lastMeasure, to : nowRounded, color : PLOT_BAND_COLOR } )
-            } else {
-                const band = this.getLatestBand();
-                if( band ) {
-                    band.options.to = nowRounded;
+        points.each( point => {
+            const ptime = exactTime ? now : point.stamp * 1000;
+            if( point.arr.length ) { // may be problem if data is not full, e.g. arr shorter than sensors arr...
+                for( let i = 0; i < sensors.length; i++ ) {
+                    this.chart.series[ i ].addPoint( [ ptime, point.arr[ i ] / 10 ], false );
                 }
             }
+
+            if( point.event === "on" ) {
+                if( !relay ) {
+                    band = this.chart.xAxis[ 0 ].addPlotBand( { from : ptime, to : nowRounded, color : PLOT_BAND_COLOR } );
+                } else {
+                    if( band ) {
+                        band.options.to = ptime;
+                    }
+                }
+
+                relay = true;
+            }
+
+            if( point.event === "off" ) {
+                relay = false;
+            }
+
+            if( relay ) {
+                if( band ) {
+                    band.options.to = ptime;
+                }
+            }
+        } );
+
+        if( this.state.chartSelectedPeriod ) {
+            this.onSetZoom( nowRounded );
         } else {
-            if( isRelayChanged ) {
-                const band = this.getLatestBand();
-
-                if( band ) {
-                    band.options.to = lastMeasure;
-                }
-            }
+            this.chart.redraw();
         }
-
-        //this.addPlotLine({value: lastMeasure, width: 1, color: cur.rel ? 'red' : 'blue'})
-
-        this.chart.redraw();
-
-        this.state.chartSelectedPeriod && this.onSetZoom( nowRounded );
     }
 
     getLatestBand() {
@@ -433,15 +477,19 @@ class Application extends React.Component {
     };
 
     loadAllData = () => {
-        this.loadLsData();
+        this.state.transaction( () => {
+            this.loadLsData();
 
-        const lastLocalDataRecord = this.state.localData.last();
-        const latestStampInLs     = lastLocalDataRecord ? lastLocalDataRecord.stamp : 0;
+            const lastLocalDataRecord = this.state.localData.last();
+            const latestStampInLs     = lastLocalDataRecord ? lastLocalDataRecord.stamp : 0;
 
-        this.loadFileData( null, latestStampInLs );
+            this.loadFileData( null, latestStampInLs );
+        } )
     };
 
     loadLsData = () => {
+        this.state.loadingTxt = "Local stored data...";
+
         let data = localStorage.getItem( "data" );
 
         if( data ) {
@@ -458,6 +506,8 @@ class Application extends React.Component {
                 this.state.localData.reset();
             }
         }
+
+        this.state.loadingTxt = "";
     };
 
     logStatus( msg ) {
@@ -465,9 +515,16 @@ class Application extends React.Component {
     }
 
     loadFileData = ( file = null, latestStampInLs ) => {
-        const fileToLoad = file || this.state.files.last();
+        const fileToLoad   = file || this.state.files.last();
+        const onDataLoaded = () => {
+            this.setChartExtremes();
+            this.chartFillWithData();
+            this.state.loadingTxt = "";
+        }
 
         if( fileToLoad ) {
+            this.state.loadingTxt = fileToLoad.n + " from controller...";
+
             fileToLoad.load().then( data => {
                 const firstRecordInFile = new FileLogRawLine( data[ 0 ], { parse : true } )
 
@@ -475,22 +532,23 @@ class Application extends React.Component {
 
                 if( firstRecordInFile.stamp > latestStampInLs ) {
                     const index = this.state.files.indexOf( fileToLoad );
-                    _.defer( () => this.loadFileData( this.state.files.at( index - 1 ), latestStampInLs ) )
+
+                    if( index > 0 ) {
+                        _.defer( () => this.loadFileData( this.state.files.at( index - 1 ), latestStampInLs ) )
+                    } else {
+                        onDataLoaded();
+                    }
                 } else {
-                    this.chartFillWithData();
+                    onDataLoaded();
                 }
             } );
         } else {
-            this.chartFillWithData();
+            onDataLoaded();
         }
     };
 
-    addPlotLine( line ) {
-        this.chart.xAxis[ 0 ].addPlotLine( line );
-    }
-
     getLatestChartTime() {
-        if( this.chart.series[ 0 ].data.length ) {
+        if( this.chart.series.length && this.chart.series[ 0 ].data.length ) {
             return this.chart.series[ 0 ].data[ this.chart.series[ 0 ].data.length - 1 ].x;
         }
 
@@ -500,11 +558,22 @@ class Application extends React.Component {
     }
 
     setZoom( time ) {
-        const latest = this.getLatestChartTime();
+        const latest    = this.getLatestChartTime();
+        let periodWidth = time;
+
+        if( !periodWidth ) {
+            const data0 = this.state.localData.first();
+
+            periodWidth = data0 && (latest - data0.stamp * 1000);
+        }
+
+        if( !periodWidth ) {
+            periodWidth = 24 * 60 * 60 * 1000;
+        }
 
         this.state.set( {
-            chartSelectedPeriod     : time || latest - this.chart.series[ 0 ].data[ 0 ].x,
-            chartSelectionRightSide : latest
+            chartSelectedPeriod     : periodWidth,
+            chartSelectionRightSide : latest,
         } );
     }
 
@@ -513,7 +582,7 @@ class Application extends React.Component {
             this.state.chartSelectionRightSide = _last;
         }
 
-        this.setChartExtremes();
+        setTimeout( () => this.setChartExtremes(), 300 );
     }
 
     onChartZoomOut() {
@@ -579,11 +648,10 @@ class Application extends React.Component {
             this.chart.series[ i ].setData( series[ i ], false );
         }
 
+        this.chart.chartWidth = this.refs.chartbox.offsetWidth;
+
         this.resetPlotLines();
         this.onChartIsReady();
-
-        this.chart.chartWidth = this.refs.chartbox.offsetWidth;
-        this.chart.redraw();
 
         localStorage.setItem( "data", JSON.stringify( localData.toJSON() ) );
     }
@@ -644,7 +712,9 @@ class Application extends React.Component {
     };
 
     onChartIsReady() {
-        this.setTimer();
+        setTimeout( () => this.getCurInfo( { last : true } ).then( () => {
+            setTimeout( () => this.setTimer(), 500 );
+        } ), 500 );
 
         this.listenTo( this.state, "change:show_boots change:show_relays", () => {
             this.savePreferences();
@@ -654,8 +724,6 @@ class Application extends React.Component {
             this.savePreferences();
             this.onSetZoom();
         } );
-
-        this.onSetZoom();
     }
 
     cleanLs() {
@@ -677,7 +745,8 @@ class Application extends React.Component {
     }
 
     exportFromLs() {
-        const { localData, sensors,
+        const {
+                  localData, sensors,
                   lsState : {
                       monthFrom, yearFrom, monthTo, yearTo
                   }
@@ -705,12 +774,12 @@ class Application extends React.Component {
 
         _.each( exportData, row => {
             const { arr, event, stamp } = row;
-            const rowData        = {
+            const rowData               = {
                 time : dayjs.utc( stamp * 1000 ).toDate(),
                 event
             }
 
-            _.each(arr, (x, i) => rowData[ "s" + i ] = arr[ i ] / 10 );
+            _.each( arr, ( x, i ) => rowData[ "s" + i ] = arr[ i ] / 10 );
 
             sheet.addRow( rowData );
         } );
@@ -736,14 +805,14 @@ class Application extends React.Component {
 
     render() {
         const {
-                  loading, conf, cur, sensors, fs, files, connection,
+                  loadingTxt, conf, cur, sensors, fs, files, connection, localData,
                   chartSelectedPeriod, show_relays, show_boots, stat, lsState
               }                                  = this.state;
         const [ daysLeftSpace, oneFileDuration ] = this.getLeftSpaceDaysText();
 
         return <Container>
             {
-                loading ? <Loader/> : void 0
+                loadingTxt ? <Loader label={ loadingTxt }/> : void 0
             }
             <div className='top-right'>
                 <div className='up_time'>{
@@ -760,7 +829,7 @@ class Application extends React.Component {
                 <Tab eventKey='chart' title='Данные'>
                     <Row>
                         <div className='chart_options'>
-                            <Button onClick={ () => this.getCurInfo( true ) }
+                            <Button onClick={ () => this.getCurInfo( { force : true } ) }
                                     variant='outline-primary' size='sm'>Load now</Button>
                             { _.map(
                                 [ [ 30, "30m" ],
@@ -837,24 +906,25 @@ class Application extends React.Component {
                                 <Form.ControlLinked valueLink={ conf.linkAt( "th" ) }/>
                             </Form.Row>
                             <Form.Row label='ON min'>
-                                <Form.ControlLinked valueLink={ conf.linkAt( "ton" ) }/>
+                                <Form.ControlLinked valueLink={ secondsLink(conf, "ton" ) }/>
                             </Form.Row>
                             <Form.Row label='OFF min'>
-                                <Form.ControlLinked valueLink={ conf.linkAt( "toff" ) }/>
+                                <Form.ControlLinked valueLink={ secondsLink(conf,  "toff" ) }/>
                             </Form.Row>
                             <Form.Row label='Read each'>
-                                <Form.ControlLinked valueLink={ conf.linkAt( "read" ) }/>
+                                <Form.ControlLinked valueLink={ secondsLink(conf, "read" ) }/>
                             </Form.Row>
                             <Form.Row label='Log each'>
-                                <Form.ControlLinked valueLink={ conf.linkAt( "log" ) }/>
+                                <Form.ControlLinked valueLink={ secondsLink(conf, "log" ) }/>
                             </Form.Row>
                             <Form.Row label='Flush log each'>
-                                <Form.ControlLinked valueLink={ conf.linkAt( "flush" ) }/>
+                                <Form.ControlLinked valueLink={ secondsLink(conf, "flush" ) }/>
                             </Form.Row>
                             <Form.Row>
                                 <Button onClick={ () => conf.save()
-                                    .then( json => this.parseState( json ) ) } variant='outline-info'>Update
-                                    config</Button>
+                                    .then( json => this.parseState( json ) ) } variant='outline-info'
+                                        disabled={!conf.isValid()}
+                                >Update config</Button>
                             </Form.Row>
                         </Col>
                         <Col>
@@ -879,8 +949,12 @@ class Application extends React.Component {
                             { files.length ?
                               <h5>Used { Math.round( fs.used * 1000 / fs.tot ) / 10 }%</h5>
                                            : void 0 }
-                            <span className='hint'>Места на ~{ daysLeftSpace }<br/>Файл на ~{ oneFileDuration }</span>
                             <FilesList files={ files }/>
+                            <span className='hint'>
+                                Места на ~{ daysLeftSpace }<br/>
+                                Файл на ~{ oneFileDuration }<br/>
+                                Точек { localData.length } шт.
+                            </span>
                         </Col>
                         <Col>
                             <h4>LS operations</h4>
