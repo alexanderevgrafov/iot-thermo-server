@@ -25,16 +25,14 @@ export class TimeInput extends React.Component {
     };
     static state = TimeInputState;
 
-    constructor( props ) {
-        super( props );
-
+    componentDidMount( ) {
         const initial    = this.props.valueLink.value;
         this.state.value = _.isNumber( initial ) ? ms( initial * 1000 ) : initial;
     }
 
     onLinkChange( link ) {
         if( _.isNumber( link.value ) && !isNaN( link.value ) ) {
-            this.state.set( { value : ms( link.value * 1000 ) }, { silent : true } );
+            this.state.set(  { value : ms( link.value * 1000 ) }, { silent : true } );
         }
     }
 

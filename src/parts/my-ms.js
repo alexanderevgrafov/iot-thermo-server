@@ -7,9 +7,6 @@ const steps        = [
     [ "w", 1 ],
 ];
 const regExpString = "^\s{0,}([\\d\\.]+)([" + (steps.map( x => x[ 0 ] ).join( "|" )) + "])\s{0,}$";
-
-console.log( regExpString );
-
 const regExp = new RegExp( regExpString, "" );
 
 function ms( val ) {

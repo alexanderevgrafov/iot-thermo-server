@@ -86,13 +86,14 @@ class CurInfoModel extends Record {
 @define
 class SensorModel extends Record {
     static attributes = {
+        name   : type( String ).has.watcher( "onChangeSave" ),
         addr   : type( Array ).has.watcher( "onAddrChange" ),
         weight : 10,
-        name   : type( String ).has.watcher( "onNameChange" ),
+        color: type( String ).has.watcher( "onChangeSave" ),
     };
 
-    onNameChange() {
-        localStorage.setItem( "/sens/" + this.addr.join( "" ), this.name );
+    onChangeSave() {
+        this.lsSave();
     }
 
     loadName() {
@@ -103,9 +104,35 @@ class SensorModel extends Record {
         return this.addr.join( "," ) + "," + this.weight;
     }
 
+    lsSave(){
+        const data = _.pick(this.attributes, ['name', 'color']);
+
+        localStorage.setItem( "/sens/" + this.addr.join( "" ), JSON.stringify(data) );
+    }
+
+    lsLoad() {
+        let json, data;
+
+        try {
+            data = localStorage.getItem( "/sens/" + this.addr.join( "" ) );
+
+            json = JSON.parse( data );
+        }
+        catch( e ) {
+            console.error( "ERROR loading sensors info from LS", e.message || e );
+
+            json = {
+                name  : data || this.addr[ 0 ] + "~" + this.addr[ 1 ],
+                color : "#" + Math.round( 10 + Math.random() * 50 ) + Math.round( 10 + Math.random() * 50 ) + Math.round( 10 + Math.random() * 50 ),
+            }
+        }
+
+        this.set( json );
+    }
+
     static collection = {
         loadNames() {
-            this.each( x => x.loadName() );
+            this.each( x => x.lsLoad() );
         }
     }
 }
@@ -383,9 +410,10 @@ class Application extends React.Component {
                 this.appendLatestToGraph( points, options.force );
 
                 if( !options.last ) {
-                    this.state.cur.set( _.pick( json, [ "rel", "up", "avg" ] ) ); //important to set relay value after appending points
-                    json.cur.shift(); // DIRTY!!!
-                    this.state.cur.s = json.cur;
+                    const data = _.pick( json, [ "rel", "up", "avg" ] ); //important to set relay value after appending points
+
+                    data.s = json.cur.slice(1, this.state.sensors.length + 1);
+                    this.state.cur.set( data );
                 }
 
                 this.state.connection = true;
@@ -705,7 +733,7 @@ class Application extends React.Component {
     }
 
     addSplineOnChart( i ) {
-        this.chart.addSeries( { type : "spline", name : this.state.sensors.at( i ).name } );
+        this.chart.addSeries( Object.assign( { type : "spline" }, _.pick( this.state.sensors.at( i ), [ "name", "color" ] ) ) );
     }
 
     afterRender = chart => {
@@ -936,6 +964,7 @@ class Application extends React.Component {
                                         { sns.addr[ 0 ] + "-" + sns.addr[ 1 ] }
                                         <Form.ControlLinked valueLink={ sns.linkAt( "name" ) }/>
                                         <Form.ControlLinked valueLink={ sns.linkAt( "weight" ) }/>
+                                        <Form.ControlLinked valueLink={ sns.linkAt( "color" ) } type="color"/>
                                     </Form.Row>
                                 )
                             }
