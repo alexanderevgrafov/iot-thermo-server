@@ -96,10 +96,6 @@ class SensorModel extends Record {
         this.lsSave();
     }
 
-    loadName() {
-        this.name = localStorage.getItem( "/sens/" + this.addr.join( "" ) ) || (this.addr[ 0 ] + "~" + this.addr[ 1 ]);
-    }
-
     toLine() {
         return this.addr.join( "," ) + "," + this.weight;
     }
@@ -131,7 +127,7 @@ class SensorModel extends Record {
     }
 
     static collection = {
-        loadNames() {
+        lsLoad() {
             this.each( x => x.lsLoad() );
         }
     }
@@ -371,7 +367,7 @@ class Application extends React.Component {
 
             this.state.cur.rel = json.rel;
 
-            this.state.sensors.loadNames();
+            this.state.sensors.lsLoad();
 
             this.timer && this.setTimer();
         } );
