@@ -19,6 +19,7 @@ import { Container, Row, Col, Form, Button, Tabs, Tab } from "./Bootstrap"
 import * as ReactHighcharts                             from "react-highcharts"
 import cx                                               from "classnames"
 import "./app.scss"
+import { TimeInput }                                    from "./parts/TimeInput";
 
 dayjs.extend( customParseFormat );
 dayjs.extend( utc );
@@ -906,19 +907,19 @@ class Application extends React.Component {
                                 <Form.ControlLinked valueLink={ conf.linkAt( "th" ) }/>
                             </Form.Row>
                             <Form.Row label='ON min'>
-                                <Form.ControlLinked valueLink={ secondsLink(conf, "ton" ) }/>
+                                <TimeInput valueLink={ conf.linkAt( "ton" ) }/>
                             </Form.Row>
                             <Form.Row label='OFF min'>
-                                <Form.ControlLinked valueLink={ secondsLink(conf,  "toff" ) }/>
+                                <TimeInput valueLink={ conf.linkAt( "toff" ) }/>
                             </Form.Row>
                             <Form.Row label='Read each'>
-                                <Form.ControlLinked valueLink={ secondsLink(conf, "read" ) }/>
+                                <TimeInput valueLink={ conf.linkAt( "read" ) }/>
                             </Form.Row>
                             <Form.Row label='Log each'>
-                                <Form.ControlLinked valueLink={ secondsLink(conf, "log" ) }/>
+                                <TimeInput valueLink={ conf.linkAt( "log" ) }/>
                             </Form.Row>
                             <Form.Row label='Flush log each'>
-                                <Form.ControlLinked valueLink={ secondsLink(conf, "flush" ) }/>
+                                <TimeInput valueLink={ conf.linkAt( "flush" ) }/>
                             </Form.Row>
                             <Form.Row>
                                 <Button onClick={ () => conf.save()
