@@ -187,7 +187,10 @@ void genFilename(String *fileName) {
 
   timeTmp = localtime(&nowTime);
   do {
-    sprintf(buffer, "%02d%02d%02d", timeTmp->tm_year - 100, timeTmp->tm_mon + 1, timeTmp->tm_mday);
+    sprintf(buffer, "%02d%02d%02d", 
+    (uint8)(timeTmp->tm_year - 100) % 100, 
+    (uint8)(timeTmp->tm_mon + 1) % 100, 
+    (uint8)timeTmp->tm_mday % 100);
     *fileName = DATA_DIR_SLASH + String(buffer) + (index > 0 ? ("_" + String(index)) : "");
     index++;
   } while (LittleFS.exists(*fileName));
@@ -302,7 +305,13 @@ String stampToPackedDate(time_t *time) {
 
   timeTmp = localtime(time);
 
-  sprintf(buffer, "%02d%02d%02d%02d%02d", timeTmp->tm_year - 100, timeTmp->tm_mon + 1, timeTmp->tm_mday, timeTmp->tm_hour, timeTmp->tm_min);
+  sprintf(buffer, "%02d%02d%02d%02d%02d", 
+  (uint8)(timeTmp->tm_year - 100)%100, 
+  (uint8)(timeTmp->tm_mon + 1)%100, 
+  (uint8)timeTmp->tm_mday%100, 
+  (uint8)timeTmp->tm_hour%100, 
+  (uint8)timeTmp->tm_min%100
+  );
   return String(buffer);
 }
 
