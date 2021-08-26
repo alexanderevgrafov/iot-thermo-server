@@ -112,7 +112,7 @@ unsigned led_profiles[3][7] = {
 byte led_current_profile = LED_WIFI;
 byte led_profile_phase = 0;
 bool ledStatus = false;
-bool ledStatusPrev = false;
+bool ledStatusPrev = true; //to make sure first cycle turns led off;
 
 timeval tv;
 timespec tp;
@@ -146,7 +146,7 @@ void flushLogIntoFile(void);
 #endif
 
 void pwmLedManager2() {
-  if (conf.blink==0) {
+  if (conf.blink == 0) {
     return;
   }
   if (!led_profiles[led_current_profile][led_profile_phase])
@@ -164,8 +164,8 @@ void pwmLedManager2() {
 void setLedProfile(byte profile_num) {
   ledStatus = false;
   led_profile_phase = 0;
-  if (conf.blink==0) {
-   return;
+  if (conf.blink == 0) {
+    return;
   }
   led_current_profile = profile_num;
   pwmLedManager2();
@@ -288,9 +288,9 @@ void putSensorsIntoDataLog() {
   if (dataLogPointer < DATA_BUFFER_SIZE) {
     // Prevent same event type on same timestamp is logged
     if (dataLogPointer > 0) {
-        if ((dataLog[dataLogPointer-1].stamp == curSensors.stamp) && (dataLog[dataLogPointer-1].event == curSensors.event)) {
-            return;
-        }
+      if ((dataLog[dataLogPointer - 1].stamp == curSensors.stamp) && (dataLog[dataLogPointer - 1].event == curSensors.event)) {
+        return;
+      }
     }
     dataLog[dataLogPointer] = curSensors;
     dataLogPointer++;
@@ -718,7 +718,7 @@ void handleConfig() {
     SERIAL_PRINT(server.arg("set"));
 
     setTimers();
-    pwmLedManager2();
+    setLedProfile( relayOn ? LED_R_ON : LED_R_OFF);
     putSensorsIntoDataLog();  // TODO - added this line to log as soon as possible after board restart. If not, first log record can be found after 'conf.log' from restart (and this period is about few hours, which is not nice is final graph)
 
     timersHourAligned = false;
