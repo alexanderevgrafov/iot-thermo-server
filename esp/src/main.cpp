@@ -38,8 +38,6 @@
 #define STAMP_BYTE_SIZE 4
 
 #define FILE_CHECK_EACH_HOURS 20
-
-//scanSensors, putSensorsIntoDataLog, flushLogIntoFile;
 #define TICKERS 3
 
 #define LED_PIN 4       // D2 on board
@@ -67,6 +65,7 @@ struct config {
   unsigned int read;
   unsigned int log;
   unsigned int flush;
+  uint8_t blink;
 };
 
 const int MIN = SEC * 60;
@@ -86,7 +85,7 @@ const char *strContentType = "application/json";
 event_record dataLog[DATA_BUFFER_SIZE];
 event_record curSensors;
 
-config conf = {3, 10, 10, 10, 180, 1800, 7200};
+config conf = {3, 10, 10, 10, 180, 1800, 7200, 1};
 
 Ticker led_sin_ticker;
 Ticker timers_aligner;
@@ -146,35 +145,10 @@ void flushLogIntoFile(void);
 #define SERIAL_PRINTLN(msg) ;
 #endif
 
-/*
-void stampToString(time_t stamp, char *buffer)
-{
-  timeTmp = localtime(&stamp);
-
-  if (stamp < 3600)
-  {
-    sprintf(buffer, "%02d:%02d", timeTmp->tm_min, timeTmp->tm_sec);
-  }
-  else if (stamp < 3600 * 24)
-  {
-    sprintf(buffer, "%02d:%02d:%02d", timeTmp->tm_hour, timeTmp->tm_min, timeTmp->tm_sec);
-  }
-  else if (stamp < 3600 * 24 * 50)
-  {
-    sprintf(buffer, "%02dd %02d:%02d:%02d", timeTmp->tm_mday, timeTmp->tm_hour, timeTmp->tm_min, timeTmp->tm_sec);
-  }
-  else if (stamp < 3600 * 24 * 365)
-  {
-    sprintf(buffer, "%02dm %02dd %02d:%02d:%02d", timeTmp->tm_mon + 1, timeTmp->tm_mday, timeTmp->tm_hour, timeTmp->tm_min, timeTmp->tm_sec);
-  }
-  else
-  {
-    sprintf(buffer, "%04d/%02d/%02d  %02d:%02d:%02d", timeTmp->tm_year + 1900, timeTmp->tm_mon + 1, timeTmp->tm_mday, timeTmp->tm_hour, timeTmp->tm_min, timeTmp->tm_sec);
-  }
-}
-*/
-
 void pwmLedManager2() {
+  if (conf.blink==0) {
+    return;
+  }
   if (!led_profiles[led_current_profile][led_profile_phase])
     led_profile_phase = 0;
 
@@ -188,9 +162,12 @@ void pwmLedManager2() {
 }
 
 void setLedProfile(byte profile_num) {
-  led_current_profile = profile_num;
-  led_profile_phase = 0;
   ledStatus = false;
+  led_profile_phase = 0;
+  if (conf.blink==0) {
+   return;
+  }
+  led_current_profile = profile_num;
   pwmLedManager2();
 }
 
@@ -309,6 +286,12 @@ void timeSyncCb() {
 
 void putSensorsIntoDataLog() {
   if (dataLogPointer < DATA_BUFFER_SIZE) {
+    // Prevent same event type on same timestamp is logged
+    if (dataLogPointer > 0) {
+        if ((dataLog[dataLogPointer-1].stamp == curSensors.stamp) && (dataLog[dataLogPointer-1].event == curSensors.event)) {
+            return;
+        }
+    }
     dataLog[dataLogPointer] = curSensors;
     dataLogPointer++;
   }
@@ -427,8 +410,6 @@ void setRelay(bool set) {
   SERIAL_PRINTLN(relayOn ? "ON" : "OFF");
 
   relaySwitchedAt = nowTime;
-
-  //  putSensorsIntoDataLog();
 
   setCurrentEvent(relayOn ? 'n' : 'f');
 
@@ -606,6 +587,7 @@ void parseConfJson(String *json) {
     conf.read = doc["read"].as<int>();
     conf.log = doc["log"].as<int>();
     conf.flush = doc["flush"].as<int>();
+    conf.blink = doc["blink"].as<int>();
   }
 }
 
@@ -681,6 +663,8 @@ void handleInfo() {
     msg += conf.log;
     msg += ",\"flush\":";
     msg += conf.flush;
+    msg += ",\"blink\":";
+    msg += conf.blink;
     msg += "},\"sn\":\"";
 
     for (int i = 0; i < sensorsCount; i++) {
@@ -734,6 +718,7 @@ void handleConfig() {
     SERIAL_PRINT(server.arg("set"));
 
     setTimers();
+    pwmLedManager2();
     putSensorsIntoDataLog();  // TODO - added this line to log as soon as possible after board restart. If not, first log record can be found after 'conf.log' from restart (and this period is about few hours, which is not nice is final graph)
 
     timersHourAligned = false;
