@@ -119,7 +119,7 @@ timespec tp;
 struct tm *timeTmp;
 
 time_t nowTime;
-time_t start;
+time_t start = 0;
 time_t relaySwitchedAt = 0;
 time_t fileCheckedAt = 0;
 
@@ -267,17 +267,17 @@ void timeSyncCb() {
 
   SERIAL_PRINTLN("--Time sync event--");
   if (start == 0) {
-    //   SERIAL_PRINT("Start time is set == ");
+    SERIAL_PRINT("Start time is set == ");
     nowTime = time(nullptr);
     start = nowTime;
-    //   SERIAL_PRINTLN(start);
+    SERIAL_PRINTLN(start);
     flushLogIntoFile();
   }
 
   if (!timersHourAligned) {
     int delta = ceil(nowTime / 3600.0) * 3600 - nowTime;
 
-    if (delta > 30) {
+    if (delta > 20) {
       SERIAL_PRINT("Align to hour required after(sec): ");
       SERIAL_PRINTLN(String(delta));
 
@@ -292,6 +292,7 @@ void putSensorsIntoDataLog() {
     // Prevent same event type on same timestamp is logged
     if (dataLogPointer > 0) {
       if ((dataLog[dataLogPointer - 1].stamp == curSensors.stamp) && (dataLog[dataLogPointer - 1].event == curSensors.event)) {
+        SERIAL_PRINT("Prevented log record duplicate: " + String(curSensors.stamp) + ", ["+ String(curSensors.event)+"]");
         return;
       }
     }
@@ -784,7 +785,7 @@ void configFromFile() {
 
 void isWiFiConnected() {
   if (WiFi.status() != WL_CONNECTED) {
-    //    SERIAL_PRINTLN("No wifi located - set time for next period");
+    SERIAL_PRINTLN("No wifi located - set time for next period");
     timers_aligner.once(60 * 15, isWiFiConnected);
   } else {
     settimeofday_cb(timeSyncCb);
