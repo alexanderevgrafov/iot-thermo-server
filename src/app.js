@@ -40,8 +40,22 @@ class ConfigModel extends Record {
         toff  : 10,
         read  : 180,
         log   : 1800,
-        flush : 7200
+        flush : 7200,
+        blink : true,
     };
+
+    toJSON( options ) {
+        const json = super.toJSON( options );
+        json.blink = json.blink ? 1 : 0;
+
+        return json;
+    }
+
+    parse( data, options ) {
+        data.blink = data.blink !== "0";
+
+        return super.parse( data, options );
+    }
 
     save() {
         const params = { set : JSON.stringify( this.toJSON() ) };
@@ -144,8 +158,6 @@ class SensorCollection extends SensorModel.Collection {
 
 @define
 class FileLogRawLine extends Record {
-    static idAttribute = "stamp";
-
     static attributes = {
         stamp : 0,
         arr   : [],
@@ -155,6 +167,7 @@ class FileLogRawLine extends Record {
     parse( _data ) {
         const data       = _.clone( _data );
         const packedDate = data.shift();
+        const stamp = packedDate > 2000000000 ? transformPackedToStamp( packedDate ) : packedDate;
         let event        = data.pop();
 
         if( _.isNumber( event ) ) {
@@ -163,7 +176,8 @@ class FileLogRawLine extends Record {
         }
 
         return {
-            stamp : packedDate > 2000000000 ? transformPackedToStamp( packedDate ) : packedDate,
+            id: stamp + event,
+            stamp,
             arr   : data,
             event
         };
@@ -171,6 +185,10 @@ class FileLogRawLine extends Record {
 
     toJSON() {
         return [ transformStampToPacked( this.stamp ), ...this.arr, this.event ];
+    }
+
+    hasEvent(){
+        return this.event !== 't';
     }
 
     static collection = {
@@ -216,9 +234,11 @@ class LineModel extends Record {
 @define
 class StatModel extends Record {
     static attributes = {
+        totalPoints: 0,
+        eventPoints: 0,
         start   : 0,
         end     : 0,
-        time_on : 0
+        time_on : 0,
     };
 
     get duration() {
@@ -343,9 +363,7 @@ class Application extends React.Component {
             }
         }
 
-        stat.start   = start;
-        stat.end     = finish;
-        stat.time_on = sum;
+        stat.set({start, end: finish, time_on: sum});
     }
 
     parseState( json ) {
@@ -427,6 +445,7 @@ class Application extends React.Component {
         const points                 = new FileLogRawLine.Collection();
         let band                     = this.getLatestBand();
         let relay                    = cur.rel;
+        let {totalPoints, eventPoints} =  this.state.stat;
 
         points.reset( _points, { parse : true } );
 
@@ -449,7 +468,7 @@ class Application extends React.Component {
                     band = this.chart.xAxis[ 0 ].addPlotBand( { from : ptime, to : nowRounded, color : PLOT_BAND_COLOR } );
                 } else {
                     if( band ) {
-                        band.options.to = ptime;
+                        band.options.to = nowRounded;
                     }
                 }
 
@@ -462,9 +481,15 @@ class Application extends React.Component {
 
             if( relay ) {
                 if( band ) {
-                    band.options.to = ptime;
+                    band.options.to = nowRounded;
                 }
             }
+
+            totalPoints++;
+            if (point.hasEvent()) {
+                eventPoints++;
+            }
+
         } );
 
         if( this.state.chartSelectedPeriod ) {
@@ -472,6 +497,8 @@ class Application extends React.Component {
         } else {
             this.chart.redraw();
         }
+
+        this.state.stat.set({totalPoints, eventPoints});
     }
 
     getLatestBand() {
@@ -492,12 +519,18 @@ class Application extends React.Component {
     };
 
     setTimer = () => {
-        const { conf } = this.state;
-        const handler  = () => this.getCurInfo();
+        const { conf }             = this.state;
+        const handler              = () => this.getCurInfo();
+        const timerPeriod          = conf.read * 1000;
+        const roundHour            = Math.floor( Date.now() / 3600000 ) * 3600000;
+        const alignedTimerMomentIn = roundHour + Math.ceil( (Date.now() - roundHour) / timerPeriod ) * timerPeriod - Date.now() + 10000; // +10sec to make sure board is ready
 
         this.stopTimer();
 
-        this.timer = setInterval( handler, conf.read * 1000 );
+        //console.log( "SetTimer", alignedTimerMomentIn );
+        setTimeout( () => {
+            this.timer = setInterval( handler, timerPeriod );
+        }, alignedTimerMomentIn );
         handler();
     };
 
@@ -644,6 +677,7 @@ class Application extends React.Component {
         const { sensors, localData } = this.state;
         const sns_count              = sensors.length;
         const series                 = [];
+        let { totalPoints, eventPoints } = this.state.stat;
 
         for( let i = 0; i < sns_count; i++ ) { // cache the series refs
             series[ i ] = [];
@@ -658,6 +692,11 @@ class Application extends React.Component {
                         series[ i ].push( [ stamp * 1000, arr[ i ] / 10 ] );
                     }
                 }
+            }
+
+            totalPoints++;
+            if (line.hasEvent()) {
+                eventPoints++;
             }
         } )
 
@@ -674,6 +713,8 @@ class Application extends React.Component {
         }
 
         this.chart.chartWidth = this.refs.chartbox.offsetWidth;
+
+        this.state.stat.set({totalPoints, eventPoints});
 
         this.resetPlotLines();
         this.onChartIsReady();
@@ -819,13 +860,17 @@ class Application extends React.Component {
 
     getLeftSpaceDaysText() {
         const { conf, sensors, fs } = this.state;
-        const recordAvgSize         = 3 + 11 /*punctuation+time*/ + 5 /*event*/ + 4 * sensors.length;
+        const { totalPoints, eventPoints } = this.state.stat;
+        const eventsFraction = totalPoints ? eventPoints/totalPoints : .1;
+        const recordAvgSize         = 1/*comma*/+2/*brakets*/ + 10 /*time*/ + 4 * sensors.length + 5.5 * eventsFraction;
         const recordsPerFile        = Math.floor( 8190 / recordAvgSize );
         const filesLeft             = Math.floor( (fs.tot - fs.used) / 8192 );
         const fileTime              = recordsPerFile * conf.log;
         const timeLeft              = filesLeft * fileTime;
 
-        return [ myHumanizer( timeLeft * 1000 ), myHumanizer( fileTime * 1000 ) ];
+       // console.log("===", totalPoints, " / ", eventPoints, eventsFraction, 8190 / recordAvgSize );
+
+        return [ myHumanizer( timeLeft * 1000 ), myHumanizer( fileTime * 1000 )];
     }
 
     render() {
@@ -893,9 +938,9 @@ class Application extends React.Component {
                     </Row>
                     <Row>
                         <Col lg='3'>{
-                            connection ? <><h3>{ cur.avg }&deg;C</h3>
-                                <h4 className={ cx( "relay", { on : cur.rel } ) }>Обогрев { cur.rel ? "включен" :
-                                                                                            "выключен" }</h4>
+                            connection ? <><h3>{ cur.avg }&deg;</h3>
+                                <h4 className={ cx( "relay", { on : cur.rel } ) }>{ cur.rel ? "Включен" :
+                                                                                            "Выключен" }</h4>
                                 { cur.s.map( ( t, i ) => {
                                     const s = sensors.at( i );
                                     return <li key={ i }>{ (s && s.name) + " " + (t / 10) }&deg;</li>
@@ -924,16 +969,16 @@ class Application extends React.Component {
                             <Form.Row>
                                 <h5>Time (mins)</h5>
                             </Form.Row>
-                            <Form.Row label='T low'>
+                            <Form.Row label='Low &deg;C'>
                                 <Form.ControlLinked valueLink={ conf.linkAt( "tl" ) }/>
                             </Form.Row>
-                            <Form.Row label='T high'>
+                            <Form.Row label='High &deg;C'>
                                 <Form.ControlLinked valueLink={ conf.linkAt( "th" ) }/>
                             </Form.Row>
-                            <Form.Row label='ON min'>
+                            <Form.Row label='Min On time'>
                                 <TimeInput valueLink={ conf.linkAt( "ton" ) }/>
                             </Form.Row>
-                            <Form.Row label='OFF min'>
+                            <Form.Row label='Min Off time'>
                                 <TimeInput valueLink={ conf.linkAt( "toff" ) }/>
                             </Form.Row>
                             <Form.Row label='Read each'>
@@ -946,6 +991,9 @@ class Application extends React.Component {
                                 <TimeInput valueLink={ conf.linkAt( "flush" ) }/>
                             </Form.Row>
                             <Form.Row>
+                                <Form.CheckLinked valueLink={ conf.linkAt( "blink" ) } type="checkbox"  label='Status led blink'/>
+                            </Form.Row>
+                            <Form.Row>
                                 <Button onClick={ () => conf.save()
                                     .then( json => this.parseState( json ) ) } variant='outline-info'
                                         disabled={!conf.isValid()}
@@ -956,12 +1004,20 @@ class Application extends React.Component {
                             <h4>Sensors</h4>
                             {
                                 sensors.map( sns =>
-                                    <Form.Row key={ sns }>
-                                        { sns.addr[ 0 ] + "-" + sns.addr[ 1 ] }
-                                        <Form.ControlLinked valueLink={ sns.linkAt( "name" ) }/>
-                                        <Form.ControlLinked valueLink={ sns.linkAt( "weight" ) }/>
-                                        <Form.ControlLinked valueLink={ sns.linkAt( "color" ) } type="color"/>
-                                    </Form.Row>
+                                    <div key={ sns }>
+                                        <Form.Row>
+                                            <Row>
+                                                <Col>{ sns.addr[ 0 ] + "-" + sns.addr[ 1 ] }</Col>
+                                                <Col><Form.ControlLinked valueLink={ sns.linkAt( "name" ) }/></Col>
+                                            </Row>
+                                        </Form.Row>
+                                        <Form.Row>
+                                            <Row>
+                                                <Col><Form.ControlLinked valueLink={ sns.linkAt( "weight" ) }/></Col>
+                                                <Col><Form.ControlLinked valueLink={ sns.linkAt( "color" ) } type='color'/></Col>
+                                            </Row>
+                                        </Form.Row>
+                                    </div>
                                 )
                             }
                             <Form.Row>

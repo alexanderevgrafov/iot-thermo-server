@@ -31,6 +31,16 @@ Form.ControlLinked = ( { valueLink, onChange, accepts, value, ...props } ) =>
         {...props}
     />;
 
+Form.CheckLinked = ({valueLink, onChange, value, ...props}) =>
+    <BsForm.Check
+        onChange={e => {
+            onChange && onChange(e);
+            valueLink && valueLink.set(e.target.checked);
+        }}
+        checked={valueLink ? valueLink.value : value}
+        {...props}
+    />;
+
 Card.SquareImg = ( { src, className, ...props } ) =>
     <BsCard.Img
         as='div'
