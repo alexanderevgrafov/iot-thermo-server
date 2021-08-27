@@ -29,7 +29,8 @@ const PLOT_BAND_COLOR = "#ff000015";
 
 const secondsLink = ( model, attr ) => Link.value(
     ms( model[ attr ] * 1000 ),
-    x => model[ attr ] = parseInt(x)==x ? parseInt(x) : Math.round( ms( x ) / 1000 ) )
+    x => model[ attr ] = parseInt(x)==x ? parseInt(x) : Math.round( ms( x ) / 1000 ) );
+const randCol = () => Math.round( 10 + Math.random() * 50 );
 
 @define
 class ConfigModel extends Record {
@@ -133,7 +134,7 @@ class SensorModel extends Record {
 
             json = {
                 name  : data || this.addr[ 0 ] + "~" + this.addr[ 1 ],
-                color : "#" + Math.round( 10 + Math.random() * 50 ) + Math.round( 10 + Math.random() * 50 ) + Math.round( 10 + Math.random() * 50 ),
+                color : "#" + randCol() + randCol() + randCol(),
             }
         }
 
@@ -141,18 +142,14 @@ class SensorModel extends Record {
     }
 
     static collection = {
+        save() {
+            const params = { sn : this.map( x => x.toLine() ).join( "," ) };
+
+            return ESPfetch( "/conf", params )
+        },
         lsLoad() {
             this.each( x => x.lsLoad() );
         }
-    }
-}
-
-@define
-class SensorCollection extends SensorModel.Collection {
-    save() {
-        const params = { sn : this.map( x => x.toLine() ).join( "," ) };
-
-        return ESPfetch( "/conf", params )
     }
 }
 
@@ -269,7 +266,7 @@ class Application extends React.Component {
     static state = {
         conf                    : ConfigModel,
         cur                     : CurInfoModel,
-        sensors                 : SensorCollection,
+        sensors                 : SensorModel.Collection,
         fs                      : FileSystem,
         files                   : FileModel.Collection,
         connection              : false,
