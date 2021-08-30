@@ -162,10 +162,10 @@ class FileLogRawLine extends Record {
     };
 
     parse( _data ) {
-        const data       = _.clone( _data );
+        const data = _.clone( _data );
         const packedDate = data.shift();
         const stamp = packedDate > 2000000000 ? transformPackedToStamp( packedDate ) : packedDate;
-        let event        = data.pop();
+        let event = data.pop();
 
         if( _.isNumber( event ) ) {
             data.push( event );
@@ -173,19 +173,26 @@ class FileLogRawLine extends Record {
         }
 
         return {
-            id: stamp + event,
+            id  : stamp + event,
             stamp,
-            arr   : data,
-            event
+            arr : data,
+            event,
         };
     }
 
     toJSON() {
-        return [ transformStampToPacked( this.stamp ), ...this.arr, this.event ];
+        const { stamp, event, arr } = this;
+        const json = [ transformStampToPacked( stamp ), ...arr ];
+
+        if( event !== "t" ) {
+            json.push( event );
+        }
+
+        return json;
     }
 
-    hasEvent(){
-        return this.event !== 't';
+    hasRelayEvent(){
+        return this.event !== 't' && this.event !== 'st';
     }
 
     static collection = {
@@ -483,7 +490,7 @@ class Application extends React.Component {
             }
 
             totalPoints++;
-            if (point.hasEvent()) {
+            if (point.hasRelayEvent()) {
                 eventPoints++;
             }
 
@@ -692,7 +699,7 @@ class Application extends React.Component {
             }
 
             totalPoints++;
-            if (line.hasEvent()) {
+            if (line.hasRelayEvent()) {
                 eventPoints++;
             }
         } )
