@@ -126,7 +126,6 @@ time_t fileCheckedAt = 0;
 String currentFileName;
 long currentFileSize;
 
-//char string20[20];
 int sensorsCount = 0;
 int dataLogPointer = 0;
 bool relayOn = false;
@@ -155,7 +154,6 @@ void pwmLedManager2() {
   if (led_profiles[led_current_profile][led_profile_phase]) {
     led_sin_ticker.once(led_profiles[led_current_profile][led_profile_phase] / 10.0, pwmLedManager2);
 
-    //SERIAL_PRINT('.');
     ledStatus = !ledStatus;
     led_profile_phase++;
   }
@@ -187,9 +185,9 @@ void genFilename(String *fileName) {
 
   timeTmp = localtime(&nowTime);
   do {
-    sprintf(buffer, "%02d%02d%02d", 
-    (uint8)(timeTmp->tm_year - 100) % 100, 
-    (uint8)(timeTmp->tm_mon + 1) % 100, 
+    sprintf(buffer, "%02d%02d%02d",
+    (uint8)(timeTmp->tm_year - 100) % 100,
+    (uint8)(timeTmp->tm_mon + 1) % 100,
     (uint8)timeTmp->tm_mday % 100);
     *fileName = DATA_DIR_SLASH + String(buffer) + (index > 0 ? ("_" + String(index)) : "");
     index++;
@@ -306,11 +304,11 @@ String stampToPackedDate(time_t *time) {
 
   timeTmp = localtime(time);
 
-  sprintf(buffer, "%02d%02d%02d%02d%02d", 
-  (uint8)(timeTmp->tm_year - 100)%100, 
-  (uint8)(timeTmp->tm_mon + 1)%100, 
-  (uint8)timeTmp->tm_mday%100, 
-  (uint8)timeTmp->tm_hour%100, 
+  sprintf(buffer, "%02d%02d%02d%02d%02d",
+  (uint8)(timeTmp->tm_year - 100)%100,
+  (uint8)(timeTmp->tm_mon + 1)%100,
+  (uint8)timeTmp->tm_mday%100,
+  (uint8)timeTmp->tm_hour%100,
   (uint8)timeTmp->tm_min%100
   );
   return String(buffer);
@@ -371,12 +369,8 @@ String genDataLogLine(event_record *record) {
 
 void flushLogIntoFile() {
   String all = "";
-  // int flushSize = 0;
 
-  //SERIAL_PRINTLN("Flush log events");
-  //SERIAL_PRINT(dataLogPointer);
-
-  //SERIAL_PRINT("): ");
+  SERIAL_PRINTLN("Flush log events");
 
   if (start == 0 || dataLogPointer == 0) {  // мы пишем лог только если знаем настоящее время.
     return;
@@ -390,9 +384,6 @@ void flushLogIntoFile() {
     String line = genDataLogLine(&dataLog[i]);
 
     if (currentFileSize + all.length() + 1 + line.length() > FS_BLOCK_SIZE) {
-      //   SERIAL_PRINTLN("----");
-      //   SERIAL_PRINTLN(String(currentFileSize) +  "+" + String(all.length()) +"+ 1 + " + String(line.length()) + " > FS_BLOCK_SIZE");
-
       if (all.length() > 2) {
         writeToFile(&all, &currentFileName);
       }
@@ -403,7 +394,6 @@ void flushLogIntoFile() {
     } else {
       all += (i > 0 ? "," : "") + line;
     }
-    //  SERIAL_PRINT(line);
   }
 
   writeToFile(&all, &currentFileName);
@@ -434,10 +424,6 @@ void scanSensors() {
   clock_gettime(0, &tp);
   nowTime = time(nullptr);
 
-  //  stampToString(nowTime - start, string20);
-  //  SERIAL_PRINT(string20);
-  //  SERIAL_PRINT("  ");
-
   setCurrentEvent('t');
 
   digitalWrite(PIN_LED, LOW);
@@ -456,8 +442,6 @@ void scanSensors() {
   average = ws ? average / ws : -127;
 
   digitalWrite(PIN_LED, HIGH);
-
-  // SERIAL_PRINTLN(String(average));
 
   if (average < -100 ||  // average -127 mean sensors problems so we better to switch off
       (average >= conf.th && relayOn && nowTime - relaySwitchedAt >= (int)conf.ton)) {
@@ -480,10 +464,7 @@ void setTimers() {
 }
 
 void sensorsPrepareAddresses() {
-  //String msg;
-
   for (byte i = 0; i < sensorsCount; i++) {
-    //  msg = "Sensor ";
     DS18B20.getAddress((uint8_t *)&sensor[i].addr, (uint8_t)i);
 
     sensor[i].weight = (byte)100 / sensorsCount;
@@ -512,17 +493,20 @@ void sensorsParseString(String *line, byte *buffer) {
 void sensorsBufferToFile(byte *buffer) {
   File file = LittleFS.open(SENSORS_FILE, "w");  // Open it
   file.write(buffer, sensorsCount * 9);
-  file.close();  // Then close the file again
-                 //SERIAL_PRINT("Sensor data saved to file");
+  file.close();
+
+  SERIAL_PRINT("Sensor data saved to file");
 }
 
 void sensorsBufferFromFile(byte *buffer) {
-  // int bytes;
   if (LittleFS.exists(SENSORS_FILE)) {
-    File file = LittleFS.open(SENSORS_FILE, "r");  // Open it
+    File file = LittleFS.open(SENSORS_FILE, "r");
     file.readBytes((char *)buffer, sensorsCount * 9);
-    file.close();  // Then close the file again
-                   //                if (bytes < sensorsCount*9         )         SERIAL_PRINTLN("--SERIOUS: sensor data read less than expected--");    else       SERIAL_PRINT("Sensor data is read from file");
+    file.close();
+    if (bytes < sensorsCount*9 )
+      SERIAL_PRINTLN("--SERIOUS: sensor data read less than expected--");
+    else
+      SERIAL_PRINTLN("Sensor data is read from file");
   }
 }
 
@@ -549,38 +533,28 @@ void serverSendfile(String fileName) {
     char buf[2048];
     size_t sent = 0;
     int siz = f.size();
-    /*
-    String S = "HTTP/1.1 200\r\nContent-Type: " + String(strContentType) + "\r\n" +
-               String(strAllowOrigin) + ": *\r\n" + String(strAllowMethod) + ": GET\r\nContent-Length: " + String(siz + 1)  // +1 for closing square bracket
-               + "\r\nConnection: close\r\n\r\n";
-*/
+
     serverSendHeaders();
     server.setContentLength(siz + 1);
     server.send(200, strContentType, "");
-    //  server.client().write(S.c_str(), S.length());
-    //  SERIAL_PRINTLN("\nSend file " + fn + " size=" + String(siz));
+
     while (siz > 0) {
       size_t len = std::min((int)(sizeof(buf) - 1), siz);
       f.read((uint8_t *)buf, len);
-      //server.client().write((const char *)buf, len);
+
       server.sendContent(buf, len);
       siz -= len;
       sent += len;
     }
     f.close();
-    //    server.client().write("]", 1);  // finnaly we have correct JSON output!
-    // buf[0] = ']';
-    // server.sendContent(buf, 1);
+
     server.sendContent("]", 1);
 
-    //  SERIAL_PRINTLN(String(sent) + "b sent");
-    //   return (sent);
   } else {
     serverSendHeaders();
     server.send(404, strContentType, "File Not Found: " + String(DATA_DIR_SLASH) + fileName);
     SERIAL_PRINTLN("Bad open file " + fileName);
   }
-  // return (0);
 }
 
 void parseConfJson(String *json) {
@@ -698,11 +672,7 @@ void handleInfo() {
       msg += dir.fileName();
       msg += "\",\"s\":";
       msg += dir.fileSize();
-      // if (dir.fileSize()) {
-      //   File f = dir.openFile("r");
-      //   msg += f.size();
-      // } else
-      //   msg += 0;
+
       flag = true;
       msg += "}";
     }
@@ -713,11 +683,11 @@ void handleInfo() {
 }
 
 void handleConfig() {
-  String msg;
-  byte sensBuff[9 * MAX_SENSORS_COUNT];
-
-  if (server.arg("set").length() > 0) {
-    String json = server.arg("set");
+  if (server.method() != HTTP_POST) {
+    server.send(405, "text/plain", "Method Not Allowed");
+  } else {
+    String msg;
+    String json = server.arg("plain");
     parseConfJson(&json);
 
     File file = LittleFS.open(CONFIG_FILE, "w");  // Open it
@@ -734,8 +704,16 @@ void handleConfig() {
     timersHourAligned = false;
   }
 
-  if (server.arg("sn").length() > 0) {
-    String line = server.arg("sn");
+  handleInfo();
+}
+
+void handleSensors() {
+  if (server.method() != HTTP_POST) {
+    server.send(405, "text/plain", "Method Not Allowed");
+  } else {
+    String line = server.arg("plain");
+    byte sensBuff[9 * MAX_SENSORS_COUNT];
+
     sensorsParseString(&line, sensBuff);
     sensorsBufferToFile(sensBuff);
     sensorsApplyBufferOn(sensBuff);
@@ -765,16 +743,14 @@ void handleGetData() {
 void configFromFile() {
   File file;
   if (LittleFS.exists(CONFIG_FILE)) {
-    int fsize = 0;
+    int fileSize = 0;
     String json;
     File file = LittleFS.open(CONFIG_FILE, "r");  // Open it
-                                                  //    SERIAL_PRINTLN("Config file opened. Size=");
-    fsize = file.size();
-    //    SERIAL_PRINTLN(fsize);
-    if (fsize > 20 && fsize < 150) {
+
+    fileSize = file.size();
+
+    if (fileSize > 20 && fileSize < 150) {
       json = file.readString();
-      //      SERIAL_PRINTLN("Config file content:");
-      //      SERIAL_PRINTLN(json);
       parseConfJson(&json);
       SERIAL_PRINT("Conf <-- ");
       SERIAL_PRINTLN(json);
@@ -792,6 +768,7 @@ void isWiFiConnected() {
     configTime(TZ_SEC, DST_SEC, "pool.ntp.org");
 
     server.on("/conf", handleConfig);
+    server.on("/sens", handleSensors);
     server.on("/data", handleGetData);
     server.on("/info", handleInfo);
 

@@ -29,7 +29,8 @@ const PLOT_BAND_COLOR = "#ff000015";
 
 const secondsLink = ( model, attr ) => Link.value(
     ms( model[ attr ] * 1000 ),
-    x => model[ attr ] = parseInt(x)==x ? parseInt(x) : Math.round( ms( x ) / 1000 ) )
+    x => model[ attr ] = parseInt(x)==x ? parseInt(x) : Math.round( ms( x ) / 1000 ) );
+const randCol = () => Math.round( 10 + Math.random() * 50 );
 
 @define
 class ConfigModel extends Record {
@@ -133,7 +134,7 @@ class SensorModel extends Record {
 
             json = {
                 name  : data || this.addr[ 0 ] + "~" + this.addr[ 1 ],
-                color : "#" + Math.round( 10 + Math.random() * 50 ) + Math.round( 10 + Math.random() * 50 ) + Math.round( 10 + Math.random() * 50 ),
+                color : "#" + randCol() + randCol() + randCol(),
             }
         }
 
@@ -141,18 +142,14 @@ class SensorModel extends Record {
     }
 
     static collection = {
+        save() {
+            const params = { sn : this.map( x => x.toLine() ).join( "," ) };
+
+            return ESPfetch( "/conf", params )
+        },
         lsLoad() {
             this.each( x => x.lsLoad() );
         }
-    }
-}
-
-@define
-class SensorCollection extends SensorModel.Collection {
-    save() {
-        const params = { sn : this.map( x => x.toLine() ).join( "," ) };
-
-        return ESPfetch( "/conf", params )
     }
 }
 
@@ -165,10 +162,10 @@ class FileLogRawLine extends Record {
     };
 
     parse( _data ) {
-        const data       = _.clone( _data );
+        const data = _.clone( _data );
         const packedDate = data.shift();
         const stamp = packedDate > 2000000000 ? transformPackedToStamp( packedDate ) : packedDate;
-        let event        = data.pop();
+        let event = data.pop();
 
         if( _.isNumber( event ) ) {
             data.push( event );
@@ -176,19 +173,26 @@ class FileLogRawLine extends Record {
         }
 
         return {
-            id: stamp + event,
+            id  : stamp + event,
             stamp,
-            arr   : data,
-            event
+            arr : data,
+            event,
         };
     }
 
     toJSON() {
-        return [ transformStampToPacked( this.stamp ), ...this.arr, this.event ];
+        const { stamp, event, arr } = this;
+        const json = [ transformStampToPacked( stamp ), ...arr ];
+
+        if( event !== "t" ) {
+            json.push( event );
+        }
+
+        return json;
     }
 
-    hasEvent(){
-        return this.event !== 't';
+    hasRelayEvent(){
+        return this.event !== 't' && this.event !== 'st';
     }
 
     static collection = {
@@ -269,7 +273,7 @@ class Application extends React.Component {
     static state = {
         conf                    : ConfigModel,
         cur                     : CurInfoModel,
-        sensors                 : SensorCollection,
+        sensors                 : SensorModel.Collection,
         fs                      : FileSystem,
         files                   : FileModel.Collection,
         connection              : false,
@@ -486,7 +490,7 @@ class Application extends React.Component {
             }
 
             totalPoints++;
-            if (point.hasEvent()) {
+            if (point.hasRelayEvent()) {
                 eventPoints++;
             }
 
@@ -695,7 +699,7 @@ class Application extends React.Component {
             }
 
             totalPoints++;
-            if (line.hasEvent()) {
+            if (line.hasRelayEvent()) {
                 eventPoints++;
             }
         } )
