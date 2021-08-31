@@ -1,61 +1,45 @@
-import React, { Link }          from "react-mvx"
-import { Record, type, define } from "type-r";
+import React          from "react-mvx"
+import { useState, useEffect }  from "react"
 import * as ms                  from "./my-ms"
 import { Form }                 from "../Bootstrap";
 
-@define
-class TimeInputState extends Record {
-    static attributes = {
-        value : ""
-    }
+export const TimeInput = ({valueLink})=>{
+    const [value, setValue] = useState("");
+    const [isError, setError] = useState(false);
 
-    validate( obj ) {
-        if( obj.value === "" || isNaN( ms( obj.value ) ) ) {
-            return "Invalid value";
+    useEffect(()=>{
+        if( _.isNumber( valueLink.value ) && !isNaN( valueLink.value ) ) {
+            setValue(  ms( valueLink.value * 1000 ) );
         }
+    }, [valueLink])
 
-        return super.validate( obj );
+    function validate( val ) {
+        setError( val === "" || isNaN(ms( val )));
+        setValue(val);
     }
+
+    const onValueChange = _.debounce( sendValueUp, 1500 )
+
+    function sendValueUp( val, includeZero = false ) {
+        if (isError) {
+            return;
+        }
+        const sec = val === "" ? 0 : Math.round( ms( val ) / 1000 );
+
+        if( includeZero || !!sec ) {
+//            console.log("Sending up", sec);
+            valueLink.set( sec );
+        }
+    }
+
+    return <Form.Control
+        type="text"
+        value={ value }
+        onChange={ e=>{
+            validate(e.target.value);
+            onValueChange(e.target.value);
+        } }
+        onBlur={ e => sendValueUp( e.target.value, true ) }
+        isInvalid={ isError }
+    />
 }
-
-@define
-export class TimeInput extends React.Component {
-    static props = {
-        valueLink : type( Link ).watcher( "onLinkChange" )
-    };
-    static state = TimeInputState;
-
-    componentDidMount( ) {
-        const initial    = this.props.valueLink.value;
-        this.state.value = _.isNumber( initial ) ? ms( initial * 1000 ) : initial;
-    }
-
-    onLinkChange( link ) {
-        if( _.isNumber( link.value ) && !isNaN( link.value ) ) {
-            this.state.set(  { value : ms( link.value * 1000 ) }, { silent : true } );
-        }
-    }
-
-    onValueChange = _.debounce( () => this.sendValueUp(), 1500 )
-
-    sendValueUp( includeZero = false ) {
-        const val = this.state.value === "" ? 0 : Math.round( ms( this.state.value ) / 1000 );
-
-        if( includeZero || !!val ) {
-            this.props.valueLink.set( val );
-        }
-    }
-
-    render() {
-        const { state } = this;
-        const isValid   = state.isValid();
-
-        return <Form.ControlLinked
-            valueLink={ state.linkAt( "value" ) }
-            onChange={ this.onValueChange }
-            onBlur={ () => this.sendValueUp( true ) }
-            isInvalid={ !isValid }
-        />;
-    }
-}
-
