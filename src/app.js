@@ -450,6 +450,9 @@ class Application extends React.Component {
         let band                     = this.getLatestBand();
         let relay                    = cur.rel;
         let {totalPoints, eventPoints} =  this.state.stat;
+        const bandTo = (band, time=nowRounded) => {
+            if (band) {band.options.to = time}
+        }
 
         points.reset( _points, { parse : true } );
 
@@ -471,9 +474,7 @@ class Application extends React.Component {
                 if( !relay ) {
                     band = this.chart.xAxis[ 0 ].addPlotBand( { from : ptime, to : nowRounded, color : PLOT_BAND_COLOR } );
                 } else {
-                    if( band ) {
-                        band.options.to = nowRounded;
-                    }
+                    bandTo(band);
                 }
 
                 relay = true;
@@ -481,16 +482,14 @@ class Application extends React.Component {
 
             if( point.event === "off" ) {
                 relay = false;
+                bandTo( band, ptime );
             }
 
-            if( relay ) {
-                if( band ) {
-                    band.options.to = nowRounded;
-                }
-            }
+            if( relay ) { bandTo( band );}
 
             totalPoints++;
-            if (point.hasRelayEvent()) {
+
+            if( point.hasRelayEvent()) {
                 eventPoints++;
             }
 
