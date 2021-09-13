@@ -876,6 +876,14 @@ class Application extends React.Component {
         return [ myHumanizer( timeLeft * 1000 ), myHumanizer( fileTime * 1000 )];
     }
 
+    getDefaultTabsKey() {
+        return localStorage.getItem( "tabsTab" ) || "chart";
+    }
+
+    saveSelectedTabKey(key){
+        localStorage.setItem( "tabsTab", key );
+    }
+
     render() {
         const {
                   loadingTxt, conf, cur, sensors, fs, files, connection, localData,
@@ -892,11 +900,12 @@ class Application extends React.Component {
                     connection ? "Аптайм " + myHumanizer( cur.up * 1000 ) : "Нет связи с платой"
                 }</div>
             </div>
-            <Tabs defaultActiveKey='chart'
+            <Tabs defaultActiveKey={ this.getDefaultTabsKey() }
                   onSelect={ key => {
-                      key === "chart" && setTimeout( () => {
-                          this.chart.setSize( null, null, false )
-                      }, 1000 )
+                      if( key === "chart" ) {
+                          setTimeout( () => this.chart.setSize( null, null, false ), 1000 );
+                      }
+                      this.saveSelectedTabKey( key )
                   } }
             >
                 <Tab eventKey='chart' title='Данные'>
