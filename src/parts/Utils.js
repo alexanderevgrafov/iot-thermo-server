@@ -1,6 +1,7 @@
 import * as dayjs from "dayjs";
 import React      from "react-mvx";
-import cx         from "classnames"
+import cx         from "classnames";
+import * as toastr from "toastr";
 
 const getServerIp = () => localStorage.getItem( "ip" ) || ""
 
@@ -23,6 +24,8 @@ const server_url = ( path, params ) => {
 const realFetch = url => fetch( url ).then( res => {
     return res.text()
 } );
+
+
 /*const mockFetch = url => {
   const _url = decodeURI(url);
   const urlMap = {
@@ -82,7 +85,7 @@ const ESPfetch = ( path, params = {}, fixData ) => {
                 json = JSON.parse( cleanSet );
             }
             catch( e ) {
-                console.log( "JSON parse failed, no matter of try to fix" );
+                reportError( "JSON parse failed, no matter of try to fix" );
                 json = [];
             }
 
@@ -140,9 +143,18 @@ const Loader = ( { label, inline, absolute, className } ) =>
         </div>
     </div>;
 
+function reportError(msg, ...args) {
+    toastr.error(msg);
+    console.error(msg, ...args);
+}
+
+function reportSuccess(msg, ...args) {
+    toastr.success(msg);
+}
+
 export {
     onServerIpChange, getServerIp, ESPfetch,
     myHumanizer, downloadFile,
     transformPackedToStamp, transformStampToPacked,
-    Loader
+    Loader, reportError, reportSuccess
 }

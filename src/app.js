@@ -13,8 +13,8 @@ import {
     onServerIpChange, getServerIp, ESPfetch,
     myHumanizer, downloadFile,
     transformPackedToStamp, transformStampToPacked,
-    Loader
-}                                                       from "./parts/Utils"
+    Loader, reportError, reportSuccess
+} from "./parts/Utils"
 import { Container, Row, Col, Form, Button, Tabs, Tab } from "./Bootstrap"
 import * as ReactHighcharts                             from "react-highcharts"
 import cx                                               from "classnames"
@@ -130,7 +130,7 @@ class SensorModel extends Record {
             json = JSON.parse( data );
         }
         catch( e ) {
-            console.error( "ERROR loading sensors info from LS", e.message || e );
+            reportError( "ERROR loading sensors info from LS", e.message || e );
 
             json = {
                 name  : data || this.addr[ 0 ] + "~" + this.addr[ 1 ],
@@ -328,7 +328,7 @@ class Application extends React.Component {
             this.state.set( JSON.parse( loaded || "{}" ) );
         }
         catch( e ) {
-            console.error( "Prefs parse error", e );
+            reportError( "Prefs parse error", e );
         }
     }
 
@@ -403,7 +403,7 @@ class Application extends React.Component {
                 this.loadAllData();
             } )
             .catch( err => {
-                console.error( "getFullState error: ", err );
+                reportError( "getFullState error: ", err );
                 this.state.loadingTxt = "";
             } )
     }
@@ -437,7 +437,7 @@ class Application extends React.Component {
                 this.state.connection = true;
             } )
             .catch( err => {
-                console.error( err );
+                reportError( err );
                 this.state.connection = false;
             } )
     }
@@ -809,7 +809,9 @@ class Application extends React.Component {
 
             localData.reset( filtered );
 
-            this.chartFillWithData()
+            this.chartFillWithData();
+
+            reportSuccess('Data is cleaned!');
         }
     }
 
@@ -856,8 +858,9 @@ class Application extends React.Component {
         workbook.xlsx.writeBuffer().then( buffer =>
             downloadFile( buffer, "application/octet-stream",
                 "temp_data_" + periodText.replace( /[^\w\-]+/g, "" ) + ".xlsx" )
+                .then(()=>reportSuccess('Exported!'))
         ).catch( e => {
-            console.log( e );
+            reportError( e );
         } )
     }
 
@@ -975,7 +978,7 @@ class Application extends React.Component {
                                 } ) }/>
                             </Form.Row>
                             <Form.Row>
-                                <Button onClick={ () => this.getFullState() } variant='outline-info'>Get From
+                                <Button onClick={ () => this.getFullState().then(()=>reportSuccess('Successful')) } variant='outline-info'>Get From
                                     ESP</Button>
                             </Form.Row>
                             <Form.Row>
@@ -1007,7 +1010,8 @@ class Application extends React.Component {
                             </Form.Row>
                             <Form.Row>
                                 <Button onClick={ () => conf.save()
-                                    .then( json => this.parseState( json ) ) } variant='outline-info'
+                                    .then( json => this.parseState( json ) )
+                                    .then(()=>reportSuccess('Config is saved'))} variant='outline-info'
                                         disabled={!conf.isValid()}
                                 >Update config</Button>
                             </Form.Row>
@@ -1034,7 +1038,8 @@ class Application extends React.Component {
                             }
                             <Form.Row>
                                 <Button onClick={ () => sensors.save()
-                                    .then( json => this.parseState( json ) ) } variant='outline-info'>Set
+                                    .then( json => this.parseState( json ) )
+                                    .then(()=>reportSuccess('Sensors are set')) } variant='outline-info'>Set
                                     balance</Button>
                             </Form.Row>
                         </Col>
