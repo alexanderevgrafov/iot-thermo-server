@@ -272,15 +272,22 @@ void timeSyncCb() {
     flushLogIntoFile();
   }
 
-  if (!timersHourAligned) {
-    int delta = ceil(nowTime / 3600.0) * 3600 - nowTime;
+  alignTimersToHour(false);
+}
 
-    if (delta > 20) {
-      SERIAL_PRINT("Align to hour required after(sec): ");
-      SERIAL_PRINTLN(String(delta));
+void alignTimersToHour(bool force) {
+  // Только если start - признак интернет-времени. Без точного времени невозможно соотносить с часами.
+  if (start) {
+    if (force || !timersHourAligned) {
+      int delta = ceil(nowTime / 3600.0) * 3600 - nowTime;
 
-      timers_aligner.once(delta, [](void) { setTimers(); });
-      timersHourAligned = true;
+      if (delta > 20) {
+        SERIAL_PRINT("Align to hour required after(sec): ");
+        SERIAL_PRINTLN(String(delta));
+
+        timers_aligner.once(delta, [](void) { setTimers(); });
+        timersHourAligned = true;
+      }
     }
   }
 }
@@ -697,11 +704,10 @@ void handleConfig() {
     SERIAL_PRINT("Conf<--");
     SERIAL_PRINT(server.arg("set"));
 
-    setTimers();
+    alignTimersToHour(true);
+
     setLedProfile( relayOn ? LED_R_ON : LED_R_OFF);
     putSensorsIntoDataLog();  // TODO - added this line to log as soon as possible after board restart. If not, first log record can be found after 'conf.log' from restart (and this period is about few hours, which is not nice is final graph)
-
-    timersHourAligned = false;
   }
 
   handleInfo();
