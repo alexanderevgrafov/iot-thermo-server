@@ -93,7 +93,33 @@ const ESPfetch = ( path, params = {}, fixData ) => {
         } )
 }
 
-const downloadFile = ( buffer, type, fileName ) => {
+function fetchAttempts( fetch, attemptsLeft, prevErrors = [] ) {
+    if( !attemptsLeft ) {
+        return Promise.reject( _convertErrorsArray(prevErrors) );
+    }
+
+    return fetch()
+      .catch( err => {
+          const errMsg = err.message || err;
+          console.log( "Attempt is:", errMsg );
+          return fetchAttempts( fetch, attemptsLeft--, [ ...prevErrors, errMsg ] );
+      } );
+}
+
+function _convertErrorsArray( arr ) {
+    return _.map(
+      _.reduce( arr, ( obj, val ) => {
+          if( !obj[ val ] ) {
+              obj[ val ] = 1
+          } else {
+              obj[ val ]++;
+          }
+          return obj;
+      }, {} ), ( count, msg ) => msg + (count > 1 ? ("(x" + count + ")") : "")
+    ).join( "; " );
+}
+
+function downloadFile( buffer, type, fileName ) {
     const a    = document.createElement( "a" );
     const blob = new Blob( [ buffer ], { type } );
 
@@ -153,7 +179,7 @@ function reportSuccess(msg, ...args) {
 }
 
 export {
-    onServerIpChange, getServerIp, ESPfetch,
+    onServerIpChange, getServerIp, ESPfetch, fetchAttempts,
     myHumanizer, downloadFile,
     transformPackedToStamp, transformStampToPacked,
     Loader, reportError, reportSuccess

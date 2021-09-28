@@ -1,7 +1,6 @@
 import React              from "react-mvx";
-import { Button }         from "../Bootstrap";
-import { define, Record } from "type-r";
-import { ESPfetch }        from "./Utils";
+import { define, Record }                       from "type-r";
+import { ESPfetch, fetchAttempts, reportError } from "./Utils";
 
 // Get rid of it in future since filenames should be correct date and will sort automatically
 const fileNameToDate = name => {
@@ -52,7 +51,12 @@ export class FileModel extends Record {
     }
 
     load() {
-        return ESPfetch(  "/data", { f : this.n }, true )
+        return fetchAttempts( () => ESPfetch( "/data", { f : this.n }, true ), 5 )
+          .catch( err => {
+                reportError( this.n + " loading error: ", err.message || err );
+                throw err;
+            }
+          );
     }
 
     static collection = {

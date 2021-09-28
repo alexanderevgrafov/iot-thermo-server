@@ -13,7 +13,7 @@ import {
     onServerIpChange, getServerIp, ESPfetch,
     myHumanizer, downloadFile,
     transformPackedToStamp, transformStampToPacked,
-    Loader, reportError, reportSuccess
+    Loader, reportError, reportSuccess, fetchAttempts
 } from "./parts/Utils"
 import { Container, Row, Col, Form, Button, Tabs, Tab } from "./Bootstrap"
 import * as ReactHighcharts                             from "react-highcharts"
@@ -396,7 +396,7 @@ class Application extends React.Component {
     }
 
     getFullState() {
-        return ESPfetch( "/conf" )
+        return fetchAttempts(()=>ESPfetch( "/conf" ), 5)
             .then( json => json && this.parseState( json ) )
             .then( () => {
                 this.state.loadingTxt = "";
@@ -602,7 +602,9 @@ class Application extends React.Component {
                 } else {
                     onDataLoaded();
                 }
-            } );
+            } ).catch( () => {
+                    this.state.connection = false;
+                } );
         } else {
             onDataLoaded();
         }
