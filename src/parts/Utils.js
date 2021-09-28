@@ -3,11 +3,11 @@ import React      from "react-mvx";
 import cx         from "classnames";
 import * as toastr from "toastr";
 
-const getServerIp = () => localStorage.getItem( "ip" ) || ""
+const getServerIp = () => localStorage.getItem( "ip" ) || "";
 
 let server_ip = getServerIp();
 
-const server_url = ( path, params ) => {
+function server_url( path, params ) {
     if( !server_ip ) {
         return "";
     }
@@ -19,14 +19,11 @@ const server_url = ( path, params ) => {
                .join( "&" )
         : ""
     );
-};
+}
 
-const realFetch = url => fetch( url ).then( res => {
-    return res.text()
-} );
+const realFetch = url => fetch( url ).then( res => res.text() );
 
-
-/*const mockFetch = url => {
+/*function mockFetch(url) {
   const _url = decodeURI(url);
   const urlMap = {
     '20_11_10': require('../txt0321/20-11-10.txt'),
@@ -59,11 +56,11 @@ const myHumanizer = dur => dayjs.duration( dur )
     .format( " Y\u00A0[г] M\u00A0[мес] D\u00A0[дн] H\u00A0[ч] m\u00A0[мин]" )
     .replace( /\s0\s[^\d\s]+/g, "" );
 
-const onServerIpChange = ip => {
+function onServerIpChange(ip) {
     localStorage.setItem( "ip", server_ip = ip );
-};
+}
 
-const ESPfetch = ( path, params = {}, fixData ) => {
+function ESPfetch( path, params = {}, fixData ) {
     const url = server_url( path, params );
 
     return realFetch( url )
@@ -143,7 +140,7 @@ function downloadFile( buffer, type, fileName ) {
         } );
 }
 
-const transformPackedToStamp = packedDate => {
+function transformPackedToStamp(packedDate) {
     let res = dayjs.utc( packedDate + "", "YYMMDDHHmm", true );
     if( !res.isValid() ) {
         return Date.now() / 1000;
@@ -154,7 +151,7 @@ const transformPackedToStamp = packedDate => {
     return res;
 }
 
-const transformStampToPacked = stamp => {
+function transformStampToPacked(stamp) {
     return dayjs.utc( stamp * 1000 ).format( "YYMMDDHHmm" );
 }
 
@@ -169,9 +166,10 @@ const Loader = ( { label, inline, absolute, className } ) =>
         </div>
     </div>;
 
-function reportError(msg, ...args) {
+function reportError(...args) {
+    const msg = args.map(x=>_.isString(x)?x:'').join(' ');
     toastr.error(msg);
-    console.error(msg, ...args);
+    console.error(...args);
 }
 
 function reportSuccess(msg, ...args) {

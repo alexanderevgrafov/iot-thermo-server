@@ -328,7 +328,7 @@ class Application extends React.Component {
             this.state.set( JSON.parse( loaded || "{}" ) );
         }
         catch( e ) {
-            reportError( "Prefs parse error", e );
+            reportError( "Prefs parse error", e.message || e );
         }
     }
 
@@ -403,7 +403,7 @@ class Application extends React.Component {
                 this.loadAllData();
             } )
             .catch( err => {
-                reportError( "getFullState error: ", err );
+                reportError( "Getting state error:", err.message || err );
                 this.state.loadingTxt = "";
             } )
     }
@@ -437,7 +437,7 @@ class Application extends React.Component {
                 this.state.connection = true;
             } )
             .catch( err => {
-                reportError( err );
+                reportError( err.message || err  );
                 this.state.connection = false;
             } )
     }
@@ -862,7 +862,7 @@ class Application extends React.Component {
                 "temp_data_" + periodText.replace( /[^\w\-]+/g, "" ) + ".xlsx" )
                 .then(()=>reportSuccess('Exported!'))
         ).catch( e => {
-            reportError( e );
+            reportError( e.message || e );
         } )
     }
 
