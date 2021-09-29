@@ -99,7 +99,7 @@ function fetchAttempts( fetch, attemptsLeft, prevErrors = [] ) {
       .catch( err => {
           const errMsg = err.message || err;
           console.log( "Attempt is:", errMsg );
-          return fetchAttempts( fetch, attemptsLeft--, [ ...prevErrors, errMsg ] );
+          return fetchAttempts( fetch, attemptsLeft-1, [ ...prevErrors, errMsg ] );
       } );
 }
 
