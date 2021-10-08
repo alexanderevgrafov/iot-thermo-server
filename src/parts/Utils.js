@@ -63,6 +63,10 @@ function onServerIpChange(ip) {
 function ESPfetch( path, params = {}, fixData ) {
     const url = server_url( path, params );
 
+    if (!url) {
+      return Promise.reject("No server URL constructed. Probably Board IP is not configured");
+    }
+
     return realFetch( url )
         .then( text => {
             let json;
