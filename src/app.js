@@ -305,11 +305,23 @@ class Application extends React.Component {
                 setExtremes : p => this.onSetExtremes( p ),
             }
         },
+        yAxis: [{
+            title: {
+                text: 'Temperature'
+            }
+        }, {
+            title: {
+                text: 'Temperature'
+            },
+            opposite: true,
+            linkedTo: 0,
+        }],
         time   : {
             timezoneOffset : (new Date).getTimezoneOffset(),
         },
         series : [],
-    }
+    };
+    lastChartState = false; // this is global to keep relay_on information between two graph filling stages (from ls and from board) - i want to make it nicer but not sure, yet, how
 
     componentDidMount() {
         this.loadPreferences();
@@ -448,7 +460,7 @@ class Application extends React.Component {
         const nowRounded             = conf.read > 60 ? Math.floor( Date.now() / 60000 ) * 60000 : now;
         const points                 = new FileLogRawLine.Collection();
         let band                     = this.getLatestBand();
-        let relay                    = cur.rel;
+        let relay                    = this.lastChartState;
         let {totalPoints, eventPoints} =  this.state.stat;
         const bandTo = (band, time=nowRounded) => {
             if (band) {band.options.to = time}
@@ -486,6 +498,8 @@ class Application extends React.Component {
             }
 
             if( relay ) { bandTo( band );}
+
+            this.lastChartState = relay;
 
             totalPoints++;
 
@@ -769,6 +783,7 @@ class Application extends React.Component {
 
         if( bandStart ) {
             bands.push( { from : bandStart, color : PLOT_BAND_COLOR, to : latestStamp } );
+            this.lastChartState = true;
         }
 
         this.chart.xAxis[ 0 ].update( { plotLines : _.compact( lines ), plotBands : _.compact( bands ) } )
