@@ -21,7 +21,7 @@ function server_url( path, params ) {
     );
 }
 
-const realFetch = url => fetch( url ).then( res => res.text() );
+const realFetch = url => fetch( url, {header:{"Origin": "local"}} ).then( res => res.text() );
 
 /*function mockFetch(url) {
   const _url = decodeURI(url);

@@ -1,8 +1,8 @@
-#include <DNSServer.h>
-#include <DallasTemperature.h>
-#include <ESP8266WebServer.h>
+//include <DNSServer.h>
 #include <ESP8266WiFi.h>
-#include <ESP8266mDNS.h>
+#include <ESP8266WebServer.h>
+//#include <ESP8266mDNS.h>
+#include <DallasTemperature.h>
 #include <OneWire.h>
 #include <Ticker.h>
 #include <WiFiClient.h>
@@ -16,8 +16,8 @@
 #include "LittleFS.h"  // LittleFS is declared
 #include "MyTicker.h"
 
-#define CONFIG_FILE "conf"
-#define SENSORS_FILE "sensors"
+#define CONFIG_FILE "conf2"
+#define SENSORS_FILE "sensors2"
 //#define DATA_FILE "data"
 #define DATA_DIR "/d"
 #define DATA_DIR_SLASH "/d/"
@@ -25,7 +25,7 @@
 #define FS_BLOCK_SIZE 8180
 //#define FS_BLOCK_SIZE 1020
 
-#define WIFI_CONFIG_DURATION_SEC 240
+#define WIFI_CONFIG_DURATION_SEC 150
 // #define TZ 3      // (utc+) TZ in hours
 // #define DST_MN 0  // use 60mn for summer time in some countries
 // #define TZ_MN ((TZ)*60)
@@ -135,11 +135,13 @@ void WiFiSetup(void);
 void setTimers(void);
 void flushLogIntoFile(void);
 
-// #define SERIAL_DEBUG 1
+#define SERIAL_DEBUG 1
 #if SERIAL_DEBUG
+#define WIFI_CHECK_PERIOD 2
 #define SERIAL_PRINT(msg) Serial.print(msg);
 #define SERIAL_PRINTLN(msg) Serial.println(msg);
 #else
+#define WIFI_CHECK_PERIOD 20
 #define SERIAL_PRINT(msg) ;
 #define SERIAL_PRINTLN(msg) ;
 #endif
@@ -171,7 +173,7 @@ void setLedProfile(byte profile_num) {
 
 void serverSendHeaders() {
   server.sendHeader(strAllowOrigin, "*");
-  server.sendHeader(strAllowMethod, "GET");
+  server.sendHeader(strAllowMethod, "GET, POST, HEAD");
 }
 
 void serverSend(String smth) {
@@ -260,21 +262,6 @@ void writeToFile(String *line, String *fileName) {
   }
 }
 
-void timeSyncCb() {
-  gettimeofday(&tv, NULL);
-
-  SERIAL_PRINTLN("--Time sync event--");
-  if (start == 0) {
-    SERIAL_PRINT("Start time is set == ");
-    nowTime = time(nullptr);
-    start = nowTime;
-    SERIAL_PRINTLN(start);
-    flushLogIntoFile();
-  }
-
-  alignTimersToHour(false);
-}
-
 void alignTimersToHour(bool force) {
   // Только если start - признак интернет-времени. Без точного времени невозможно соотносить с часами.
   if (start) {
@@ -290,6 +277,21 @@ void alignTimersToHour(bool force) {
       }
     }
   }
+}
+
+void timeSyncCb() {
+  gettimeofday(&tv, NULL);
+
+  SERIAL_PRINTLN("--Time sync event--");
+  if (start == 0) {
+    SERIAL_PRINT("Start time is set == ");
+    nowTime = time(nullptr);
+    start = nowTime;
+    SERIAL_PRINTLN(start);
+    flushLogIntoFile();
+  }
+
+  alignTimersToHour(false);
 }
 
 void putSensorsIntoDataLog() {
@@ -510,10 +512,10 @@ void sensorsBufferFromFile(byte *buffer) {
     File file = LittleFS.open(SENSORS_FILE, "r");
     file.readBytes((char *)buffer, sensorsCount * 9);
     file.close();
-    if (bytes < sensorsCount*9 )
-      SERIAL_PRINTLN("--SERIOUS: sensor data read less than expected--");
-    else
-      SERIAL_PRINTLN("Sensor data is read from file");
+    // if (bytes < sensorsCount*9 )
+    //   SERIAL_PRINTLN("--SERIOUS: sensor data read less than expected--");
+    // else
+    //   SERIAL_PRINTLN("Sensor data is read from file");
   }
 }
 
@@ -690,11 +692,8 @@ void handleInfo() {
 }
 
 void handleConfig() {
-  if (server.method() != HTTP_POST) {
-    server.send(405, "text/plain", "Method Not Allowed");
-  } else {
     String msg;
-    String json = server.arg("plain");
+    String json = server.arg("set");
     parseConfJson(&json);
 
     File file = LittleFS.open(CONFIG_FILE, "w");  // Open it
@@ -708,16 +707,12 @@ void handleConfig() {
 
     setLedProfile( relayOn ? LED_R_ON : LED_R_OFF);
     putSensorsIntoDataLog();  // TODO - added this line to log as soon as possible after board restart. If not, first log record can be found after 'conf.log' from restart (and this period is about few hours, which is not nice is final graph)
-  }
 
   handleInfo();
 }
 
 void handleSensors() {
-  if (server.method() != HTTP_POST) {
-    server.send(405, "text/plain", "Method Not Allowed");
-  } else {
-    String line = server.arg("plain");
+    String line = server.arg("sn");
     byte sensBuff[9 * MAX_SENSORS_COUNT];
 
     sensorsParseString(&line, sensBuff);
@@ -726,7 +721,6 @@ void handleSensors() {
 
     SERIAL_PRINT("SensConf<--");
     SERIAL_PRINTLN(line);
-  }
 
   handleInfo();
 }
@@ -746,6 +740,11 @@ void handleGetData() {
   }
 }
 
+void handleFormat(){
+  int success = LittleFS.format();
+  serverSend("{\"formatted\":"+String(success)+"}");
+}
+
 void configFromFile() {
   File file;
   if (LittleFS.exists(CONFIG_FILE)) {
@@ -754,6 +753,9 @@ void configFromFile() {
     File file = LittleFS.open(CONFIG_FILE, "r");  // Open it
 
     fileSize = file.size();
+
+    SERIAL_PRINT("Conf file size ");
+    SERIAL_PRINTLN(fileSize);
 
     if (fileSize > 20 && fileSize < 150) {
       json = file.readString();
@@ -766,9 +768,19 @@ void configFromFile() {
 }
 
 void isWiFiConnected() {
-  if (WiFi.status() != WL_CONNECTED) {
-    SERIAL_PRINTLN("No wifi located - set time for next period");
-    timers_aligner.once(60 * 15, isWiFiConnected);
+  SERIAL_PRINTLN("WiFi");
+  SERIAL_PRINTLN(WiFi.localIP().toString());
+  /*
+  while (WiFi.localIP().toString() == "0.0.0.0") {
+
+P.S. I, also, found that in the BasicOTA example, it uses while (WiFi.waitForConnectResult()
+  */
+  if (WiFi.localIP().toString() == "0.0.0.0") {
+    SERIAL_PRINTLN("No wifi located - set time for next period. ");
+  //  SERIAL_PRINTLN(WiFi.status());
+
+
+    timers_aligner.once(WIFI_CHECK_PERIOD, isWiFiConnected);
   } else {
     settimeofday_cb(timeSyncCb);
     configTime(TZ_SEC, DST_SEC, "pool.ntp.org");
@@ -777,11 +789,13 @@ void isWiFiConnected() {
     server.on("/sens", handleSensors);
     server.on("/data", handleGetData);
     server.on("/info", handleInfo);
+    server.on("/formatFS", handleFormat);
 
     server.begin();
 
     SERIAL_PRINT("IP is ");
     SERIAL_PRINTLN(WiFi.localIP().toString());
+    WiFi.printDiag(Serial);
   }
 }
 
@@ -790,13 +804,28 @@ void WiFiSetup() {
 
   setLedProfile(LED_WIFI);
 
-  WiFi.mode(WIFI_STA);
   SERIAL_PRINTLN("Waiting wifi");
+  WiFi.mode(WIFI_STA);
+  delay(1000);
 
+  //WiFi.begin("GreenBox", "sobaka-enot");
+
+  wifiManager.setConfigPortalTimeout(240);
   if (WiFi.SSID() != "")
     wifiManager.setConfigPortalTimeout(WIFI_CONFIG_DURATION_SEC);  //If no access point name has been previously entered disable timeout.
 
   wifiManager.autoConnect("ESP8266_HeatController");
+
+//ToDo------
+  // SERIAL_PRINTLN("Connecting");
+  // while (WiFi.status() != WL_CONNECTED) {
+  //   delay(2500);
+  //   SERIAL_PRINTLN(WiFi.status());
+  // }
+  // SERIAL_PRINTLN();
+
+  // SERIAL_PRINTLN("Connected, IP address: ");
+  // SERIAL_PRINTLN(WiFi.localIP());
 
   isWiFiConnected();
 

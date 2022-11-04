@@ -145,7 +145,7 @@ class SensorModel extends Record {
         save() {
             const params = { sn : this.map( x => x.toLine() ).join( "," ) };
 
-            return ESPfetch( "/conf", params )
+            return ESPfetch( "/sens", params )
         },
         lsLoad() {
             this.each( x => x.lsLoad() );
@@ -1040,14 +1040,14 @@ class Application extends React.Component {
                                     <div key={ sns }>
                                         <Form.Row>
                                             <Row>
-                                                <Col>{ sns.addr[ 0 ] + "-" + sns.addr[ 1 ] }</Col>
                                                 <Col><Form.ControlLinked valueLink={ sns.linkAt( "name" ) }/></Col>
+                                                <Col><Form.ControlLinked valueLink={ sns.linkAt( "color" ) } type='color'/></Col>
                                             </Row>
                                         </Form.Row>
                                         <Form.Row>
                                             <Row>
                                                 <Col><Form.ControlLinked valueLink={ sns.linkAt( "weight" ) }/></Col>
-                                                <Col><Form.ControlLinked valueLink={ sns.linkAt( "color" ) } type='color'/></Col>
+                                                <Col>{ sns.addr[ 0 ] + "-" + sns.addr[ 1 ] }</Col>
                                             </Row>
                                         </Form.Row>
                                     </div>
